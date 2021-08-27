@@ -58,7 +58,7 @@ local function injectuid(uid, image, newimage)
     print('Injecting uid into '..image)
     struid = string.format("%02X %02X %02X %02X %02X %02X %02X",
         tu[1], tu[2], tu[3], tu[4], tu[5], tu[6], tu[7])
-    mycmd = '~/amiibo/amiibo_venv/bin/amiibo uid '..image..' "'..struid..'" '..newimage
+    mycmd = '/usr/local/bin/amiibo uid '..image..' "'..struid..'" '..newimage
     print(mycmd)
     res = os.execute(mycmd)
     print(res)
@@ -70,6 +70,8 @@ local function firstphase(key, img)
     print('Restoring image from file: '..img)
     -- restore image
     core.console('hf mfu restore -k FFFFFFFF -f '..img)
+    -- cleanup and remove created img file
+    os.execute('rm -f '..img)
     -- write block 3
     core.console('hf mfu wrbl -b 3 -d F110FFEE -k FFFFFFFF')
     -- write block 134
@@ -92,8 +94,23 @@ local function secondphase(key, twobytes)
     core.console('hf mfu wrbl -b 2 -d '..wholepart..' -k '..key)
     -- last bit
     core.console('hf mfu wrbl -b 130 -d 01000FBD -k '..key)
+    --print('You must finialize the tag manually, or overight it and then finalize it with:')
+    --print('hf mfu wrbl -b 130 -d 01000FBD -k '..key)
     return 'Wrote: '..wholepart
 end
+
+-- Check availability of file
+function file_check(file_name)
+  local file_found=io.open(file_name, "r")      
+  
+  if file_found==nil then
+    file_found=file_name .. " ... Error - File Not Found"
+  else
+    file_found=file_name .. " ... File Found"
+  end
+  return file_found
+end
+
 --
 --- The main entry point
 function main(args)
@@ -109,6 +126,8 @@ function main(args)
     end
     -- output which image
     print('We are making this: '..image)
+
+    print(file_check(image))
 
     local res, err
     -- read the tag for its UID
