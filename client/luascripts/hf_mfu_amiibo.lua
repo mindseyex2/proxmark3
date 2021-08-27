@@ -70,7 +70,7 @@ local function firstphase(key, img)
     print('Restoring image from file: '..img)
     -- restore image
     core.console('hf mfu restore -k FFFFFFFF -f '..img)
-    -- cleanup and remove created img file
+    -- cleanup and remove created img file - This should be changed to a generic command to remove files.
     os.execute('rm -f '..img)
     -- write block 3
     core.console('hf mfu wrbl -b 3 -d F110FFEE -k FFFFFFFF')
