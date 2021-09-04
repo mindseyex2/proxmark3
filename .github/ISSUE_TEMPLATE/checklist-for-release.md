@@ -23,23 +23,25 @@ assignees: doegox, iceman1001
 ```bash
 #!/usr/bin/env bash
 
-make clean && make -j PLATFORM=PM3GENERIC && tools/pm3_tests.sh --long
-make clean && make -j PLATFORM=PM3RDV4 && tools/pm3_tests.sh --long
-make clean && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && tools/pm3_tests.sh --long
-sudo make install; pushd /tmp; proxmark3 -c 'data load -f lf_EM4x05.pm3;lf search -1'; popd; sudo make uninstall
+make clean && make -j PLATFORM=PM3GENERIC PLATFORM_EXTRAS= && tools/pm3_tests.sh --long || exit 1
+make clean && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS= && tools/pm3_tests.sh --long || exit 1
+make clean && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && tools/pm3_tests.sh --long || exit 1
+make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && sudo make install PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && ( cd /tmp; proxmark3 -c 'data load -f lf_EM4x05.pm3;lf search -1'|grep 'Valid FDX-B ID found' ) && sudo make uninstall || exit 1
 
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3GENERIC && PM3BIN=./proxmark3 ../../tools/pm3_tests.sh client )
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4  && PM3BIN=./proxmark3 ../../tools/pm3_tests.sh client )
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && PM3BIN=./proxmark3 ../../tools/pm3_tests.sh client )
+( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3GENERIC PLATFORM_EXTRAS= && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
+( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4  PLATFORM_EXTRAS= && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
+( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
 ```
 
 - [ ] RPI Zero
+- [ ] Jetson Nano
 - [ ] WSL
-- [ ] PSv3.9
+- [ ] PSv3.10
 - [ ] Archlinux
 - [ ] Kali
-- [ ] Debian
-- [ ] Ubuntu20
+- [ ] Debian Stable
+- [ ] Debian Testing
+- [ ] Ubuntu21
 - [ ] ParrotOS
 - [ ] Fedora
 - [ ] OpenSuse
@@ -52,6 +54,11 @@ sudo make install; pushd /tmp; proxmark3 -c 'data load -f lf_EM4x05.pm3;lf searc
 last line of output,  gives you next command to run
 Sample:  `git push && git push origin v4.15000`
 
-
+## Step Github releases
 Go to Github releases,  create release based on the new created tag and publish
+
+## Step Homebrew updates
 update homebrew repo, file `proxmark3.rb` with a SHA256 sum of the file `v4.15000.tar.gz`  
+
+## Step package maintains
+make a list of new standalone modes,  so when we alert package maintainers they have a sporting chance of adding them

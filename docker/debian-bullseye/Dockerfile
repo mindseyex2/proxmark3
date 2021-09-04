@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 ENV LANG C
 ENV DEBIAN_FRONTEND noninteractive
