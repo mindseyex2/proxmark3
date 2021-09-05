@@ -11,6 +11,7 @@ assignees: doegox, iceman1001
 
 - [ ] CHANGELOG.md
 - [ ] `make style`
+- [ ] `make miscchecks`
 - [ ] `make clean; make client CC=clang CXX=clang++ LD=clang++` on recent Debian or Ubuntu
 - [ ] `mymanualchecks.sh`
 - [ ] `mycppcheck.sh` no alarming warning?
@@ -44,7 +45,8 @@ make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && sudo make install PLATFORM=P
 - [ ] Ubuntu21
 - [ ] ParrotOS
 - [ ] Fedora
-- [ ] OpenSuse
+- [ ] OpenSuse Leap
+- [ ] OpenSuse Tumbleweed
 - [ ] OSX
 - [ ] Android
 - [ ] Termux

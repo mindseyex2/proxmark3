@@ -232,7 +232,7 @@ endif
 # configure system to ignore PM3 device as a modem (ModemManager blacklist, effective *only* if ModemManager is not using _strict_ policy)
 # Read doc/md/ModemManager-Must-Be-Discarded.md for more info
 udev:
-	sudo cp -rf driver/77-pm3-usb-device-blacklist.rules /etc/udev/rules.d/77-pm3-usb-device-blacklist.rules
+	sudo cp -rf driver/77-pm3-usb-device-blacklist.rules $(DESTDIR)$(UDEV_PREFIX)/77-pm3-usb-device-blacklist.rules
 	sudo udevadm control --reload-rules
 
 # configure system to add user to the dialout group
@@ -252,7 +252,7 @@ print-%: ; @echo $* = $($*)
 
 style:
 	# Make sure astyle is installed
-	@which astyle >/dev/null || ( echo "Please install 'astyle' package first" ; exit 1 )
+	@command -v astyle >/dev/null || ( echo "Please install 'astyle' package first" ; exit 1 )
 	# Remove spaces & tabs at EOL, add LF at EOF if needed on *.c, *.h, *.cpp. *.lua, *.py, *.pl, Makefile, *.v, pm3
 	find . \( -not -path "./cov-int/*" -and -not -path "./fpga*/xst/*" -and \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "Makefile" -or -name "*.v" -or -name "pm3" \) \) \
 	    -exec perl -pi -e 's/[ \t]+$$//' {} \; \
@@ -267,7 +267,7 @@ style:
 	# Update commands.md
 	[ -x client/proxmark3 ] && client/proxmark3 -m > doc/commands.md
 	# Make sure python3 is installed
-	@which python3 >/dev/null || ( echo "Please install 'python3' package first" ; exit 1 )
+	@command -v python3 >/dev/null || ( echo "Please install 'python3' package first" ; exit 1 )
 	# Update commands.json
 	[ -x client/proxmark3 ] && client/proxmark3 --fulltext | python3 client/pyscripts/pm3_help2json.py - doc/commands.json
 
@@ -282,7 +282,7 @@ miscchecks: TABSCMD+= && vi {} -c ':set tabstop=4' -c ':set et|retab' -c ':wq'
 endif
 miscchecks:
 # Make sure recode is installed
-	@which recode >/dev/null || ( echo "Please install 'recode' package first" ; exit 1 )
+	@command -v recode >/dev/null || ( echo "Please install 'recode' package first" ; exit 1 )
 	@echo "Files with suspicious chars:"
 	@find . \( -not -path "./cov-int/*" -and -not -path "./client/deps/*" -and \( -name "*.[ch]" -or -name "*.cpp" -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "Makefile" -or -name "*.v" -or -name "pm3" \) \) \
 	      -exec sh -c "cat {} |recode utf8.. >/dev/null || echo {}" \;
@@ -292,7 +292,7 @@ else
 	@echo "Files with tabs: (rerun with EDIT=1 if you want to convert them with vim)"
 endif
 # to remove tabs within lines, one can try with: vi $file -c ':set tabstop=4' -c ':set et|retab' -c ':wq'
-	@find . \( -not -path "./cov-int/*" -and -not -path "./client/deps/*" -and \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" -or -name "pm3" \) \) \
+	@find . \( -not -path "./cov-int/*" -and -not -path "./client/deps/*" -and -not -wholename "./client/src/pm3_*wrap.c" -and \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" -or -name "pm3" \) \) \
 	      -exec sh -c "$(TABSCMD)" \;
 #	@echo "Files with printf \\\\t:"
 #	@find . \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" \) \
