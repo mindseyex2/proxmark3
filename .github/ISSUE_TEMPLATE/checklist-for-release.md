@@ -16,6 +16,8 @@ assignees: doegox, iceman1001
 - [ ] `mymanualchecks.sh`
 - [ ] `mycppcheck.sh` no alarming warning?
 - [ ] `mystandalone_makes.sh` check that the script contains all standalone modes then compile all standalone modes (linux only)
+- [ ] `experimental_lib` compilation & tests
+- [ ] `experimental_client_with_swig` compilation & tests
 - [ ] GitHub Actions - green across the board ( MacOS, Ubuntu, Windows)
 - [ ] [Appveyor](https://ci.appveyor.com/project/RfidResearchGroup/proxmark3/history) green (PS)
 
@@ -32,6 +34,9 @@ make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && sudo make install PLATFORM=P
 ( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3GENERIC PLATFORM_EXTRAS= && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
 ( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4  PLATFORM_EXTRAS= && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
 ( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
+
+# Hitag2crack, optionally with --long and --gpu ...
+make hitag2crack/clean && make hitag2crack && tools/pm3_tests.sh hitag2crack || exit 1
 ```
 
 - [ ] RPI Zero
