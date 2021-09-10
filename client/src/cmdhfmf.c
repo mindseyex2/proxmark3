@@ -363,8 +363,8 @@ static int CmdHF14AMfWrBl(const char *Cmd) {
     }
     uint8_t blockno = (uint8_t)b;
 
-    PrintAndLogEx(INFO, "--block no %d, key %c - %s", blockno, (keytype == MF_KEY_B) ? 'B' : 'A', sprint_hex_inrow(key, sizeof(key)));
-    PrintAndLogEx(INFO, "--data: %s", sprint_hex(block, sizeof(block)));
+    PrintAndLogEx(INFO, "Writing block no %d, key %c - %s", blockno, (keytype == MF_KEY_B) ? 'B' : 'A', sprint_hex_inrow(key, sizeof(key)));
+    PrintAndLogEx(INFO, "data: %s", sprint_hex(block, sizeof(block)));
 
     uint8_t data[26];
     memcpy(data, key, sizeof(key));
@@ -3451,6 +3451,8 @@ static int CmdHF14AMfSim(const char *Cmd) {
             readerAttack(k_sector, k_sectorsCount, data[0], setEmulatorMem, verbose);
         }
         showSectorTable(k_sector, k_sectorsCount);
+    } else {
+        PrintAndLogEx(INFO, "Press pm3-button to abort simulation");
     }
     return PM3_SUCCESS;
 }
@@ -4524,7 +4526,7 @@ static int CmdHF14AMfCLoad(const char *Cmd) {
         return PM3_EFILE;
     }
 
-    PrintAndLogEx(SUCCESS, "Card loaded %d blocks from file", blockno);
+    PrintAndLogEx(SUCCESS, "Card loaded " _YELLOW_("%d") " blocks from file", blockno);
     PrintAndLogEx(INFO, "Done!");
     return PM3_SUCCESS;
 }
@@ -4755,13 +4757,13 @@ static int CmdHF14AMfCSave(const char *Cmd) {
                 g_conn.block_after_ACK = false;
             }
             if (mfEmlSetMem(dump + (i * MFBLOCK_SIZE), i, 5) != PM3_SUCCESS) {
-                PrintAndLogEx(WARNING, "Can't set emul block: %d", i);
+                PrintAndLogEx(WARNING, "Can't set emul block: " _YELLOW_("%d"), i);
             }
             PrintAndLogEx(NORMAL, "." NOLF);
             fflush(stdout);
         }
         PrintAndLogEx(NORMAL, "");
-        PrintAndLogEx(SUCCESS, "uploaded %d bytes to emulator memory", bytes);
+        PrintAndLogEx(SUCCESS, "uploaded " _YELLOW_("%d") " bytes to emulator memory", bytes);
     }
 
     // user supplied filename?
@@ -4877,7 +4879,7 @@ static int CmdHF14AMfCView(const char *Cmd) {
         }
 
         if (mfCGetBlock(i, dump + (i * MFBLOCK_SIZE), flags)) {
-            PrintAndLogEx(WARNING, "Can't get magic card block: %u", i);
+            PrintAndLogEx(WARNING, "Can't get magic card block: " _YELLOW_("%u"), i);
             PrintAndLogEx(HINT, "Verify your card size, and try again or try another tag position");
             free(dump);
             return PM3_ESOFT;
