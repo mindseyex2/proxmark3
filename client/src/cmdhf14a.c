@@ -33,6 +33,7 @@
 #include "nfc/ndef.h"      // NDEFRecordsDecodeAndPrint
 #include "cmdnfc.h"        // print_type4_cc_info
 #include "fileutils.h"     // saveFile
+#include "atrs.h"          // getATRinfo
 
 static bool APDUInFramingEnable = true;
 
@@ -504,8 +505,9 @@ static int CmdHF14AReader(const char *Cmd) {
                 if (card.ats_len >= 3) { // a valid ATS consists of at least the length byte (TL) and 2 CRC bytes
                     if (card.ats_len == card.ats[0] + 2)
                         PrintAndLogEx(SUCCESS, " ATS: "  _GREEN_("%s"), sprint_hex(card.ats, card.ats[0]));
-                    else
+                    else {
                         PrintAndLogEx(SUCCESS, " ATS: [%d] "  _GREEN_("%s"), card.ats_len, sprint_hex(card.ats, card.ats_len));
+                    }
                 }
             }
             if (!disconnectAfter) {
@@ -1992,7 +1994,13 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
                         break;
                 }
             } else {
-                PrintAndLogEx(SUCCESS, "   %s", sprint_hex_inrow(card.ats + pos, calen));
+
+                if (card.ats[pos] == 0x80)
+                    PrintAndLogEx(SUCCESS, "   %s  (compact TLV data object)", sprint_hex_inrow(card.ats + pos, calen));
+                else
+                    PrintAndLogEx(SUCCESS, "   %s", sprint_hex_inrow(card.ats + pos, calen));
+
+                PrintAndLogEx(NORMAL, "");
             }
         }
 
@@ -2202,7 +2210,7 @@ static uint16_t get_sw(uint8_t *d, uint8_t n) {
     return d[n] * 0x0100 + d[n + 1];
 }
 
-static uint64_t inc_sw_error_occurence(uint16_t sw, uint64_t all_sw[256][256]) {
+static uint64_t inc_sw_error_occurrence(uint16_t sw, uint64_t all_sw[256][256]) {
     uint8_t sw1 = (uint8_t)(sw >> 8);
     uint8_t sw2 = (uint8_t)(0xff & sw);
     if (sw1 == 0x90 && sw2 == 0x00) {
@@ -2291,7 +2299,7 @@ static int CmdHf14AFindapdu(const char *Cmd) {
     bool inc_p1 = true;
     bool skip_ins = false;
     uint64_t all_sw[256][256] = { { 0 } };
-    uint64_t sw_occurences = 0;
+    uint64_t sw_occurrences = 0;
     uint64_t t_start = msclock();
     uint64_t t_last_reset = msclock();
 
@@ -2334,10 +2342,10 @@ retry_ins:
                         goto retry_ins;
                     }
                     uint16_t sw = get_sw(response, response_n);
-                    sw_occurences = inc_sw_error_occurence(sw, all_sw);
+                    sw_occurrences = inc_sw_error_occurrence(sw, all_sw);
 
                     // Show response.
-                    if (sw_occurences < error_limit) {
+                    if (sw_occurrences < error_limit) {
                         logLevel_t log_level = INFO;
                         if (sw == 0x9000) {
                             log_level = SUCCESS;
