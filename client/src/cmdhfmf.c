@@ -822,7 +822,7 @@ static int CmdHF14AMfDump(const char *Cmd) {
     xdump.card_info = card;
     xdump.dump = (uint8_t *)carddata;
     xdump.dumplen = bytes;
-    saveFileJSON(dataFilename, jsfCardMemory, (uint8_t*)&xdump, sizeof(xdump), NULL);
+    saveFileJSON(dataFilename, jsfCardMemory, (uint8_t *)&xdump, sizeof(xdump), NULL);
     return PM3_SUCCESS;
 }
 
@@ -837,7 +837,7 @@ static int CmdHF14AMfRestore(const char *Cmd) {
                   "\n"
                   "`--uid` param is used for filename templates `hf-mf-<uid>-dump.bin` and `hf-mf-<uid>-key.bin.\n"
                   "        If not specified, it will read the card uid instead.\n"
-                  "   `-w` param you can indicate that the key file should be used for authentication instead.\n"
+                  " `--ka` param you can indicate that the key file should be used for authentication instead.\n"
                   "        if so we also try both B/A keys",
                   "hf mf restore\n"
                   "hf mf restore --1k --uid 04010203\n"
@@ -2603,7 +2603,7 @@ all_found:
     xdump.card_info = card;
     xdump.dump = dump;
     xdump.dumplen = bytes;
-    saveFileJSON(filename, jsfCardMemory, (uint8_t*)&xdump, sizeof(xdump), NULL);
+    saveFileJSON(filename, jsfCardMemory, (uint8_t *)&xdump, sizeof(xdump), NULL);
 
     // Generate and show statistics
     t1 = msclock() - t1;
@@ -4008,7 +4008,7 @@ static int CmdHF14AMfESave(const char *Cmd) {
     }
     xdump.dump = dump;
     xdump.dumplen = bytes;
-    saveFileJSON(filename, jsfCardMemory, (uint8_t*)&xdump, sizeof(xdump), NULL);
+    saveFileJSON(filename, jsfCardMemory, (uint8_t *)&xdump, sizeof(xdump), NULL);
     free(dump);
     return PM3_SUCCESS;
 }
@@ -4845,7 +4845,7 @@ static int CmdHF14AMfCSave(const char *Cmd) {
     xdump.card_info = card;
     xdump.dump = dump;
     xdump.dumplen = bytes;
-    saveFileJSON(filename, jsfCardMemory, (uint8_t*)&xdump, sizeof(xdump), NULL);
+    saveFileJSON(filename, jsfCardMemory, (uint8_t *)&xdump, sizeof(xdump), NULL);
     free(dump);
     return PM3_SUCCESS;
 }

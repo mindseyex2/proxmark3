@@ -1,14 +1,14 @@
 # RRG / Iceman - Proxmark3
 
 
-| Releases     | Coverity    | Contributors |
-| ------------------- | -------------------:| -------------------:|
+| Latest Release | Coverity | Contributors |
+|:--------------:|:--------:|:------------:|
 | [![Latest release](https://img.shields.io/github/v/release/rfidresearchgroup/proxmark3)](https://github.com/RfidResearchGroup/proxmark3/releases/latest) | [![Coverity Status](https://scan.coverity.com/projects/19334/badge.svg)](https://scan.coverity.com/projects/proxmark3-rrg-iceman-repo)| ![GitHub contributors](https://img.shields.io/github/contributors/rfidresearchgroup/proxmark3) |
 
 
-| Actions OSX CI    |  Actions Ubuntu CI    | Windows CI |
-| ------------------- | -------------------:| -------------------:|
-| ![MacOS Build and Test](https://github.com/RfidResearchGroup/proxmark3/workflows/MacOS%20Build%20and%20Test/badge.svg?branch=master) | ![Ubuntu Build and Test](https://github.com/RfidResearchGroup/proxmark3/workflows/Ubuntu%20Build%20and%20Test/badge.svg?branch=master) | [![Build status](https://ci.appveyor.com/api/projects/status/b4gwrhq3nc876cuu/branch/master?svg=true)](https://ci.appveyor.com/project/RfidResearchGroup/proxmark3/branch/master) |
+| Actions OSX CI |  Actions Ubuntu CI | Actions Windows CI |
+|:--------------:|:------------------:|:------------------:|
+| ![MacOS Build and Test](https://github.com/RfidResearchGroup/proxmark3/workflows/MacOS%20Build%20and%20Test/badge.svg?branch=master) | ![Ubuntu Build and Test](https://github.com/RfidResearchGroup/proxmark3/workflows/Ubuntu%20Build%20and%20Test/badge.svg?branch=master) | [![Windows Build and Test](https://github.com/RfidResearchGroup/proxmark3/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/RfidResearchGroup/proxmark3/actions/workflows/windows.yml) |
 
 
 # Table of Contents
@@ -157,7 +157,7 @@ The [public roadmap](https://github.com/RfidResearchGroup/proxmark3/wiki/Public-
 
 This repo compiles nicely on 
    - WSL1 on Windows 10
-   - Proxspace enviroment [release v3.10](https://github.com/Gator96100/ProxSpace/releases)
+   - Proxspace environment [release v3.10](https://github.com/Gator96100/ProxSpace/releases)
    - Windows/MinGW environment
    - Ubuntu, ParrotOS, Gentoo, Pentoo, Kali, NetHunter, Arch Linux, Fedora, Debian, Raspbian
    - Android / Termux

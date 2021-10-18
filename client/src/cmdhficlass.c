@@ -612,7 +612,7 @@ static int CmdHFiClassSim(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf iclass sim",
                   "Simulate a iCLASS legacy/standard tag",
-                  "hf iclass sim -t 0 --csn 031FEC8AF7FF12E0   --> simulate with specficied CSN\n"
+                  "hf iclass sim -t 0 --csn 031FEC8AF7FF12E0   --> simulate with specified CSN\n"
                   "hf iclass sim -t 1                          --> simulate with default CSN\n"
                   "hf iclass sim -t 2                          --> execute loclass attack online part\n"
                   "hf iclass sim -t 3                          --> simulate full iCLASS 2k tag\n"
@@ -2479,9 +2479,9 @@ void printIclassDumpContents(uint8_t *iclass_dump, uint8_t startblock, uint8_t e
     PrintAndLogEx(INFO, " block#  | data                    | ascii    |lck| info");
     PrintAndLogEx(INFO, "---------+-------------------------+----------+---+--------------");
     PrintAndLogEx(INFO, "  0/0x00 | " _GREEN_("%s") "| " _GREEN_("%s") " |   | CSN "
-        , sprint_hex(iclass_dump, 8)
-        , sprint_ascii(iclass_dump, 8)
-        );
+                  , sprint_hex(iclass_dump, 8)
+                  , sprint_ascii(iclass_dump, 8)
+                 );
 
     if (i != 1)
         PrintAndLogEx(INFO, "....");
@@ -2535,12 +2535,12 @@ void printIclassDumpContents(uint8_t *iclass_dump, uint8_t startblock, uint8_t e
             }
 
             PrintAndLogEx(INFO, "%3d/0x%02X | %s | %s | %s "
-                , i
-                , i
-                , sprint_hex_ascii(blk, 8)
-                , lockstr
-                , s
-                );
+                          , i
+                          , i
+                          , sprint_hex_ascii(blk, 8)
+                          , lockstr
+                          , s
+                         );
 
         } else {
             const char *info_ks[] = {"CSN", "Config", "E-purse", "Debit", "Credit", "AIA", "User"};
@@ -2550,13 +2550,13 @@ void printIclassDumpContents(uint8_t *iclass_dump, uint8_t startblock, uint8_t e
             }
             if (i >= 6 && i <= 9) {
                 PrintAndLogEx(INFO, "%3d/0x%02X | " _YELLOW_("%s") "| " _YELLOW_("%s") " | %s | %s "
-                    , i
-                    , i
-                    , sprint_hex(blk, 8)
-                    , sprint_ascii(blk, 8)
-                    , lockstr
-                    , s
-                    );
+                              , i
+                              , i
+                              , sprint_hex(blk, 8)
+                              , sprint_ascii(blk, 8)
+                              , lockstr
+                              , s
+                             );
             } else {
                 PrintAndLogEx(INFO, "%3d/0x%02X | %s | %s | %s ", i, i, sprint_hex_ascii(blk, 8), lockstr, s);
             }
@@ -3923,7 +3923,7 @@ static command_t CommandTable[] = {
     {"encrypt",     CmdHFiClassEncryptBlk,      AlwaysAvailable, "Encrypt given block data"},
     {"decrypt",     CmdHFiClassDecrypt,         AlwaysAvailable, "Decrypt given block data or tag dump file" },
     {"managekeys",  CmdHFiClassManageKeys,      AlwaysAvailable, "Manage keys to use with iclass commands"},
-    {"permutekey",  CmdHFiClassPermuteKey,      IfPm3Iclass,     "Permute function from 'heart of darkness' paper"},
+    {"permutekey",  CmdHFiClassPermuteKey,      AlwaysAvailable, "Permute function from 'heart of darkness' paper"},
     {"view",        CmdHFiClassView,            AlwaysAvailable, "Display content from tag dump file"},
     {NULL, NULL, NULL, NULL}
 };
