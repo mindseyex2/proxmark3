@@ -18,6 +18,7 @@
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
+#include "rl_vocabulory.h"
 #include <signal.h>
 #endif
 #include <ctype.h>
@@ -92,8 +93,8 @@ static void showBanner_logo(LogoMode mode) {
 }
 
 static void showBanner(void) {
-
-    g_printAndLog = PRINTANDLOG_PRINT;
+    uint8_t old_printAndLog = g_printAndLog;
+    g_printAndLog &= PRINTANDLOG_PRINT;
     PrintAndLogEx(NORMAL, "\n");
 
 #if defined(_WIN32)
@@ -113,7 +114,7 @@ static void showBanner(void) {
 //    PrintAndLogEx(NORMAL, "\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
     PrintAndLogEx(NORMAL, "");
     fflush(stdout);
-    g_printAndLog = PRINTANDLOG_PRINT | PRINTANDLOG_LOG;
+    g_printAndLog = old_printAndLog;
 }
 #endif //LIBPM3
 
@@ -435,8 +436,9 @@ check_script:
             cmd[strlen(cmd) - off] = '\0';
 
             if (cmd[0] != '\0') {
+                uint8_t old_printAndLog = g_printAndLog;
                 if (!printprompt) {
-                    g_printAndLog = PRINTANDLOG_LOG;
+                    g_printAndLog &= PRINTANDLOG_LOG;
                 }
                 char prompt[PROXPROMPT_MAX_SIZE] = {0};
                 prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
@@ -444,7 +446,7 @@ check_script:
                 char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
                 memcpy_filter_rlmarkers(prompt_filtered, prompt, sizeof(prompt_filtered));
                 PrintAndLogEx(NORMAL, "%s%s", prompt_filtered, cmd);
-                g_printAndLog = PRINTANDLOG_PRINT | PRINTANDLOG_LOG;
+                g_printAndLog = old_printAndLog;
 
 #ifdef HAVE_READLINE
                 // add to history if not from a script
@@ -774,6 +776,9 @@ int main(int argc, char *argv[]) {
 #ifdef HAVE_READLINE
     /* initialize history */
     using_history();
+
+    rl_readline_name = "PM3";
+    rl_attempted_completion_function = rl_command_completion;
 
 #ifdef RL_STATE_READCMD
     rl_extend_line_buffer(1024);

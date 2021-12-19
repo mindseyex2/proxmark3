@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 This project uses the changelog in accordance with [keepchangelog](http://keepachangelog.com/). Please use this to write notable changes, which is not the same as git commit log...
 
 ## [unreleased][unreleased]
+ - Added option `--crc-ht` to `lf cmdread` to compute and add CRC-8/HITAG (@doegox)
+ - Added option `-k` to `lf cmdread` to keep field on (@doegox)
+ - Added `hf mf acl` - decode and print MIFARE access rights (@iceman1001)
+ - Added for readline, <tab> autocomplete work inside pm3 client (@iceman1001)
+ - Fixed `hf iclass dump` - now uses the right key when suppling credit key (@iceman1001)
+ - Changed crc16_legic to be supported in lua (@iceman1001)
+ - Changed `trace list -t 14a` - now annotate magsafe wupa (@iceman1001)
+ - Added magsafe polling (thanks to @tcprst !) (@iceman1001)
  - Changed `trace list -t 14a` - now annotate ECP (@iceman1001)
  - Added enhanced contactless polling (thanks to @relays user at gitlab) (@iceman1001)
  - Added iCS key (@FlUxIuS)
@@ -29,6 +37,9 @@ This project uses the changelog in accordance with [keepchangelog](http://keepac
  - Fixed `hf mfdes` - fix buffer overflow (@AxisRay)
  - Changed `hf mfdes` - detect LRP mode and info updates (@merlokk)
  - Fixed `hf mfdes` - increase response buffer length (@merlokk)
+ - Fixed `SimulateTagLowFrequencyEx` ignoring the `ledcontrol` argument (@zabszk)
+ - Added ledcontrol argument to LF operations (@zabszk)
+ - Added new standalone mode `dankarmulti` -  select and run multiple standalone modes (@dankar)
 
 ## [crimson.4.14434][2021-09-18]
  - Fixed `hf mf staticnested` - flashmem / non loop now works (@horrordash)

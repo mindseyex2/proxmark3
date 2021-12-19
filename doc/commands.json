@@ -976,7 +976,7 @@
         },
         "help": {
             "command": "help",
-            "description": "help use `<command> help` for details of a command prefs { edit client/device preferences... } -------- ----------------------- technology ----------------------- analyse { analyse utils... } data { plot window / data buffer manipulation... } emv { emv iso-14443 / iso-7816... } hf { high frequency commands... } hw { hardware commands... } lf { low frequency commands... } nfc { nfc commands... } reveng { crc calculations from reveng software... } smart { smart card iso-7816 commands... } script { scripting commands... } trace { trace manipulation... } wiegand { wiegand format manipulation... } -------- ----------------------- general ----------------------- clear clear screen hints turn hints on / off msleep add a pause in milliseconds rem add a text line in log file quit exit exit program [=] session log /home/phil/.proxmark3/logs/log_20211016.txt --------------------------------------------------------------------------------------- auto available offline: no run lf search / hf search / data plot / data save",
+            "description": "help use `<command> help` for details of a command prefs { edit client/device preferences... } -------- ----------------------- technology ----------------------- analyse { analyse utils... } data { plot window / data buffer manipulation... } emv { emv iso-14443 / iso-7816... } hf { high frequency commands... } hw { hardware commands... } lf { low frequency commands... } nfc { nfc commands... } reveng { crc calculations from reveng software... } smart { smart card iso-7816 commands... } script { scripting commands... } trace { trace manipulation... } wiegand { wiegand format manipulation... } -------- ----------------------- general ----------------------- clear clear screen hints turn hints on / off msleep add a pause in milliseconds rem add a text line in log file quit exit exit program --------------------------------------------------------------------------------------- auto available offline: no run lf search / hf search / data plot / data save",
             "notes": [
                 "auto"
             ],
@@ -1129,7 +1129,8 @@
             "description": "sends raw bytes over iso14443a. with option to use topaz 14a mode.",
             "notes": [
                 "hf 14a raw -sc 3000 -> select, crc, where 3000 == 'read block 00'",
-                "hf 14a raw -ak -b 7 40 -> send 7 bit byte 0x40"
+                "hf 14a raw -ak -b 7 40 -> send 7 bit byte 0x40",
+                "hf 14a raw --ecp -s -> send ecp before select"
             ],
             "offline": false,
             "options": [
@@ -1144,15 +1145,20 @@
                 "-t, --timeout <ms> timeout in milliseconds",
                 "-v, --verbose verbose output",
                 "--topaz use topaz protocol to send command",
+                "--ecp use enhanced contactless polling",
+                "--mag use apple magsafe polling",
                 "<hex> raw bytes to send"
             ],
-            "usage": "hf 14a raw [-hack3rsv] [-b <dec>] [-t <ms>] [--topaz] <hex> [<hex>]..."
+            "usage": "hf 14a raw [-hack3rsv] [-b <dec>] [-t <ms>] [--topaz] [--ecp] [--mag] <hex> [<hex>]..."
         },
         "hf 14a reader": {
             "command": "hf 14a reader",
             "description": "act as a iso-14443a reader to identify tag. look for iso-14443a tags until enter or the pm3 button is pressed",
             "notes": [
-                "hf 14a reader -@ -> continuous mode"
+                "hf 14a reader",
+                "hf 14a reader -@ -> continuous mode",
+                "hf 14a reader --ecp -> trigger apple enhanced contactless polling",
+                "hf 14a reader --mag -> trigger apple magsafe polling"
             ],
             "offline": false,
             "options": [
@@ -1161,9 +1167,11 @@
                 "-s, --silent silent (no messages)",
                 "--drop just drop the signal field",
                 "--skip iso14443-3 select only (skip rats)",
+                "--ecp use enhanced contactless polling",
+                "--mag use apple magsafe polling",
                 "-@ continuous reader mode"
             ],
-            "usage": "hf 14a reader [-hks@] [--drop] [--skip]"
+            "usage": "hf 14a reader [-hks@] [--drop] [--skip] [--ecp] [--mag]"
         },
         "hf 14a sim": {
             "command": "hf 14a sim",
@@ -3101,6 +3109,20 @@
             ],
             "usage": "hf lto wrbl [-h] -d <hex> --block <dec>"
         },
+        "hf mf acl": {
+            "command": "hf mf acl",
+            "description": "print decoded mifare access rights (acl), a = key a b = key b ab = both key a and b access = access bytes inside sector trailer block increment, decrement, transfer, restore is for value blocks",
+            "notes": [
+                "hf mf acl",
+                "hf mf acl -d ff0780"
+            ],
+            "offline": true,
+            "options": [
+                "-h, --help this help",
+                "-d, --data <hex> acl bytes specified as 3 hex bytes"
+            ],
+            "usage": "hf mf acl [-h] -d <hex>"
+        },
         "hf mf auth4": {
             "command": "hf mf auth4",
             "description": "executes aes authentication command in iso14443-4",
@@ -3637,7 +3659,7 @@
         },
         "hf mf help": {
             "command": "hf mf help",
-            "description": "help this help list list mifare history hardnested nested attack for hardened mifare classic cards decrypt [nt] [ar_enc] [at_enc] [data] - to decrypt sniff or trace view display content from tag dump file --------------------------------------------------------------------------------------- hf mf list available offline: yes alias of `trace list -t mf` with selected protocol data to annotate trace buffer you can load a trace from file (see `trace load -h`) or it be downloaded from device by default it accepts all other arguments of `trace list`. note that some might not be relevant for this specific protocol",
+            "description": "help this help list list mifare history hardnested nested attack for hardened mifare classic cards decrypt [nt] [ar_enc] [at_enc] [data] - to decrypt sniff or trace acl decode and print mifare classic access rights bytes view display content from tag dump file --------------------------------------------------------------------------------------- hf mf list available offline: yes alias of `trace list -t mf` with selected protocol data to annotate trace buffer you can load a trace from file (see `trace load -h`) or it be downloaded from device by default it accepts all other arguments of `trace list`. note that some might not be relevant for this specific protocol",
             "notes": [
                 "hf mf list -f -> show frame delay times",
                 "hf mf list -1 -> use trace buffer"
@@ -10031,8 +10053,8 @@
         }
     },
     "metadata": {
-        "commands_extracted": 589,
+        "commands_extracted": 591,
         "extracted_by": "PM3Help2JSON v1.00",
-        "extracted_on": "2021-10-16T21:43:45"
+        "extracted_on": "2021-12-17T02:04:29"
     }
 }

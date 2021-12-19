@@ -143,6 +143,12 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ICLASS_DEBIT(x)             (((x) & 0x80) == 0x80)
 
 
+// 7bit Apple Magsafe wake up command
+#define MAGSAFE_CMD_WUPA_1          0x7A
+#define MAGSAFE_CMD_WUPA_2          0x7B
+#define MAGSAFE_CMD_WUPA_3          0x7C
+#define MAGSAFE_CMD_WUPA_4          0x7D
+
 #define ISO14443A_CMD_REQA          0x26
 #define ISO14443A_CMD_READBLOCK     0x30
 #define ISO14443A_CMD_WUPA          0x52
@@ -416,8 +422,9 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define MFDES_AUTHENTICATE_ISO          0x1A  // AUTHENTICATE_STANDARD
 #define MFDES_AUTHENTICATE_AES          0xAA
 
-#define MFDES_AUTHENTICATE_EV2F         0x71
-#define MFDES_AUTHENTICATE_EV2NF        0x77
+//  Leakage Resilient Primitive (LRP)
+#define MFDES_AUTHENTICATE_EV2F         0x71  // LRP, AuthenticateLRPFirst
+#define MFDES_AUTHENTICATE_EV2NF        0x77  // LRP, AuthenticateLRPNonFirst
 
 #define MFDES_CREDIT                    0x0C
 #define MFDES_LIMITED_CREDIT            0x1C
