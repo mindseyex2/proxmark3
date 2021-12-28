@@ -76,6 +76,7 @@ LUALIBLD =
 LUAPLATFORM = generic
 ifneq (,$(findstring MINGW,$(platform)))
     LUAPLATFORM = mingw
+	LDLIBS += -lws2_32
 else
     ifeq ($(platform),Darwin)
         LUAPLATFORM = macosx
@@ -505,6 +506,7 @@ SRCS =  mifare/aiddesfire.c \
 		cmdhfemrtd.c \
 		cmdhffelica.c \
 		cmdhffido.c \
+		cmdhfksx6924.c \
 		cmdhfcipurse.c \
 		cmdhficlass.c \
 		cmdhflegic.c \
@@ -556,6 +558,7 @@ SRCS =  mifare/aiddesfire.c \
 		cmdlfti.c \
 		cmdlfviking.c \
 		cmdlfvisa2000.c \
+		cmdlfzx8211.c \
 		cmdmain.c \
 		cmdnfc.c \
 		cmdparser.c \
@@ -589,6 +592,7 @@ SRCS =  mifare/aiddesfire.c \
 		fido/cose.c \
 		fido/cbortools.c \
 		fido/fidocore.c \
+		ksx6924/ksx6924core.c \
 		cipurse/cipursecore.c \
 		cipurse/cipursecrypto.c \
 		cipurse/cipursetest.c \

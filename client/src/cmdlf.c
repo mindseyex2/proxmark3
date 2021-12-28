@@ -58,6 +58,7 @@
 #include "cmdlfti.h"        // for ti menu
 #include "cmdlfviking.h"    // for viking menu
 #include "cmdlfvisa2000.h"  // for VISA2000 menu
+#include "cmdlfzx8211.h"    // for ZX8211 menu
 #include "crc.h"
 #include "pm3_cmd.h"        // for LF_CMDREAD_MAX_EXTRA_SYMBOLS
 
@@ -287,14 +288,14 @@ int CmdLFCommandRead(const char *Cmd) {
         uint8_t n = 0;
         crc_init_ref(&crc, 8, 0x1d, 0xff, 0, false, false);
         uint8_t i;
-        for (i=0;i<cmd_len;i++) {
+        for (i = 0; i < cmd_len; i++) {
             if ((cmd[i] != '0') && (cmd[i] != '1')) {
                 continue;
             }
             data <<= 1;
             data += cmd[i] - '0';
             n += 1;
-            if (n==8) {
+            if (n == 8) {
                 crc_update2(&crc, data, n);
                 n = 0;
                 data = 0;
@@ -304,7 +305,7 @@ int CmdLFCommandRead(const char *Cmd) {
             crc_update2(&crc, data, n);
         }
         uint8_t crc_final = crc_finish(&crc);
-        for (int j=7; j>=0; j--) {
+        for (int j = 7; j >= 0; j--) {
             cmd[cmd_len] = ((crc_final >> j) & 1) ? '1' : '0';
             cmd_len++;
         }
@@ -1825,6 +1826,7 @@ static command_t CommandTable[] = {
     {"t55xx",       CmdLFT55XX,         AlwaysAvailable, "{ T55xx CHIPs...             }"},
     {"viking",      CmdLFViking,        AlwaysAvailable, "{ Viking RFIDs...            }"},
     {"visa2000",    CmdLFVisa2k,        AlwaysAvailable, "{ Visa2000 RFIDs...          }"},
+    {"zx",          CmdLFZx8211,        AlwaysAvailable, "{ ZX8211 RFIDs...            }"},
     {"-----------", CmdHelp,            AlwaysAvailable, "--------------------- " _CYAN_("General") " ---------------------"},
     {"config",      CmdLFConfig,        IfPm3Lf,         "Get/Set config for LF sampling, bit/sample, decimation, frequency"},
     {"cmdread",     CmdLFCommandRead,   IfPm3Lf,         "Modulate LF reader field to send command before read"},
