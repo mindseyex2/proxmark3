@@ -1,9 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2021 <iceman>
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // readline auto complete utilities
 //-----------------------------------------------------------------------------
@@ -15,7 +23,7 @@
 extern "C" {
 #endif
 
-#ifdef HAVE_READLINE
+#if defined(HAVE_READLINE)
 #include <stdlib.h>
 #include <string.h>
 #include <readline/readline.h>
@@ -216,6 +224,11 @@ const static vocabulory_t vocabulory[] = {
     { 0, "hf fido auth" }, 
     { 0, "hf fido make" }, 
     { 0, "hf fido assert" }, 
+    { 1, "hf gallagher help" }, 
+    { 0, "hf gallagher reader" }, 
+    { 0, "hf gallagher clone" }, 
+    { 0, "hf gallagher delete" }, 
+    { 1, "hf gallagher diversifykey" }, 
     { 1, "hf ksx6924 help" }, 
     { 0, "hf ksx6924 balance" }, 
     { 0, "hf ksx6924 info" }, 
@@ -641,9 +654,6 @@ const static vocabulory_t vocabulory[] = {
     { 0, "lf visa2000 reader" }, 
     { 0, "lf visa2000 clone" }, 
     { 0, "lf visa2000 sim" }, 
-    { 1, "lf zx help" }, 
-    { 1, "lf zx demod" }, 
-    { 0, "lf zx reader" }, 
     { 1, "mem help" }, 
     { 0, "mem baudrate" }, 
     { 0, "mem dump" }, 

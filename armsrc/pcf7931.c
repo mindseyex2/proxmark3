@@ -1,3 +1,18 @@
+//-----------------------------------------------------------------------------
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
+//-----------------------------------------------------------------------------
 #include "pcf7931.h"
 
 #include "proxmark3_arm.h"
@@ -165,7 +180,7 @@ bool IsBlock0PCF7931(uint8_t *block) {
     return false;
 }
 
-bool IsBlock1PCF7931(uint8_t *block) {
+bool IsBlock1PCF7931(const uint8_t *block) {
     // assuming all RFU bits are set to 0
 
     uint8_t rb1 = block[14] & 0x80;
@@ -195,7 +210,7 @@ void ReadPCF7931(bool ledcontrol) {
     uint8_t single_blocks[8][17]; // PFC blocks with unknown position
     int single_blocks_cnt = 0;
 
-    size_t n = 0; // transmitted blocks
+    size_t n; // transmitted blocks
     uint8_t tmp_blocks[4][16]; // temporary read buffer
 
     uint8_t found_0_1 = 0; // flag: blocks 0 and 1 were found
@@ -457,7 +472,7 @@ void WritePCF7931(uint8_t pass1, uint8_t pass2, uint8_t pass3, uint8_t pass4, ui
  * @param tab : array of the data frame
  */
 
-void SendCmdPCF7931(uint32_t *tab, bool ledcontrol) {
+void SendCmdPCF7931(const uint32_t *tab, bool ledcontrol) {
     uint16_t u = 0, tempo = 0;
 
     if (g_dbglevel >= DBG_INFO) {

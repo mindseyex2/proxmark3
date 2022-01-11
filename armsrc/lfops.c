@@ -1,7 +1,18 @@
 //-----------------------------------------------------------------------------
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// Copyright (C) Jonathan Westhues, 2005
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // Miscellaneous routines for low frequency tag operations.
 // Tags supported here so far are Texas Instruments (TI), HID, EM4x05, EM410x
@@ -392,7 +403,9 @@ static bool prev_keep = false;
  * @param period_1
  * @param command (in binary char array)
  */
-void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint16_t period_0, uint16_t period_1, uint8_t *symbol_extra, uint16_t *period_extra, uint8_t *command, bool verbose, bool keep_field_on, uint32_t samples, bool ledcontrol) {
+void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint16_t period_0, uint16_t period_1,
+                                     const uint8_t *symbol_extra, uint16_t *period_extra, uint8_t *command,
+                                     bool verbose, bool keep_field_on, uint32_t samples, bool ledcontrol) {
 
     if (!prev_keep) {
         FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
@@ -1093,7 +1106,8 @@ static void leadingZeroBiphaseSimBits(int *n, uint8_t clock, uint8_t *phase) {
 
 
 // args clock, ask/man or askraw, invert, transmission separator
-void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t clk, uint16_t size, uint8_t *bits, bool ledcontrol) {
+void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t clk,
+                  uint16_t size, const uint8_t *bits, bool ledcontrol) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
     set_tracing(false);
 
@@ -1173,7 +1187,8 @@ static void pskSimBit(uint8_t waveLen, int *n, uint8_t clk, uint8_t *curPhase, b
 }
 
 // args clock, carrier, invert,
-void CmdPSKsimTAG(uint8_t carrier, uint8_t invert, uint8_t clk, uint16_t size, uint8_t *bits, bool ledcontrol) {
+void CmdPSKsimTAG(uint8_t carrier, uint8_t invert, uint8_t clk, uint16_t size,
+                  const uint8_t *bits, bool ledcontrol) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
     set_tracing(false);
 
@@ -1207,7 +1222,8 @@ static void nrzSimBit(uint8_t c, int *n, uint8_t clock) {
 }
 
 // args clock,
-void CmdNRZsimTAG(uint8_t invert, uint8_t separator, uint8_t clk, uint16_t size, uint8_t *bits, bool ledcontrol) {
+void CmdNRZsimTAG(uint8_t invert, uint8_t separator, uint8_t clk, uint16_t size,
+                  const uint8_t *bits, bool ledcontrol) {
 
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
     set_tracing(false);
@@ -2208,7 +2224,7 @@ void T55xxWakeUp(uint32_t pwd, uint8_t flags, bool ledcontrol) {
 }
 
 /*-------------- Cloning routines -----------*/
-static void WriteT55xx(uint32_t *blockdata, uint8_t startblock, uint8_t numblocks, bool ledcontrol) {
+static void WriteT55xx(const uint32_t *blockdata, uint8_t startblock, uint8_t numblocks, bool ledcontrol) {
     t55xx_write_block_t cmd;
     cmd.pwd     = 0;
     cmd.flags   = 0;

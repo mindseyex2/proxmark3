@@ -1,9 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2020 tharexde
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // Low frequency EM4x50 commands
 //-----------------------------------------------------------------------------
@@ -682,8 +690,10 @@ void em4x50_login(uint32_t *password, bool ledcontrol) {
     int status = PM3_EFAILED;
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
         status = login(*password);
     }
 
@@ -700,8 +710,10 @@ void em4x50_brute(em4x50_data_t *etd, bool ledcontrol) {
     uint32_t pwd = 0x0;
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
         bsuccess = brute(etd->password1, etd->password2, &pwd);
     }
 
@@ -736,8 +748,10 @@ void em4x50_chk(uint8_t *filename, bool ledcontrol) {
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
 
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
 
         // try to login with current password
         for (int i = 0; i < pwd_count; i++) {
@@ -859,8 +873,10 @@ void em4x50_read(em4x50_data_t *etd, bool ledcontrol) {
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
 
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
 
         bool blogin = true;
 
@@ -888,8 +904,10 @@ void em4x50_info(em4x50_data_t *etd, bool ledcontrol) {
 
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
 
         bool blogin = true;
         // login with given password
@@ -917,8 +935,10 @@ void em4x50_reader(bool ledcontrol) {
 
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
         standard_read(&now, words);
     }
 
@@ -1032,8 +1052,10 @@ void em4x50_write(em4x50_data_t *etd, bool ledcontrol) {
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
 
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
 
         // if password is given try to login first
         status = PM3_SUCCESS;
@@ -1089,8 +1111,10 @@ void em4x50_writepwd(em4x50_data_t *etd, bool ledcontrol) {
     if (ledcontrol) LED_C_ON();
     if (get_signalproperties() && find_em4x50_tag()) {
 
-        if (ledcontrol) LED_C_OFF();
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_C_OFF();
+            LED_D_ON();
+        }
 
         // login and change password
         if (login(etd->password1) == PM3_SUCCESS) {

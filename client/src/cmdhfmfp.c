@@ -1,10 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2018 Merlok
-// Copyright (C) 2018 drHatson
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // High frequency MIFARE  Plus commands
 //-----------------------------------------------------------------------------
@@ -1213,9 +1220,11 @@ static int CmdHFMFPChk(const char *Cmd) {
     if (dict_filenamelen) {
         uint32_t keycnt = 0;
         res = loadFileDICTIONARYEx((char *)dict_filename, keyList, sizeof(keyList), NULL, 16, &keycnt, 0, &endFilePosition, true);
-        keyListLen = keycnt;
-        if (endFilePosition)
+
+        if (res == PM3_SUCCESS && endFilePosition) {
+            keyListLen = keycnt;
             PrintAndLogEx(SUCCESS, "First part of dictionary successfully loaded.");
+        }
     }
 
     if (keyListLen == 0) {
@@ -1235,7 +1244,7 @@ static int CmdHFMFPChk(const char *Cmd) {
     }
 
     if (verbose == false)
-        PrintAndLogEx(NORMAL, "Search keys");
+        PrintAndLogEx(INFO, "Search keys");
 
     while (true) {
         res = MFPKeyCheck(startSector, endSector, startKeyAB, endKeyAB, keyList, keyListLen, foundKeys, verbose);
@@ -1255,7 +1264,9 @@ static int CmdHFMFPChk(const char *Cmd) {
 
             uint32_t keycnt = 0;
             res = loadFileDICTIONARYEx((char *)dict_filename, keyList, sizeof(keyList), NULL, 16, &keycnt, endFilePosition, &endFilePosition, false);
-            keyListLen = keycnt;
+            if (res == PM3_SUCCESS && endFilePosition) {
+                keyListLen = keycnt;
+            }
             continue;
         }
         break;

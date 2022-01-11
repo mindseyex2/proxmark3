@@ -1,9 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2021 Iceman
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // Low frequency ZX8211 funtions
 //-----------------------------------------------------------------------------
@@ -87,7 +95,6 @@ static void zx8211_setup_read(void) {
     sample_config *sc = getSamplingConfig();
     LFSetupFPGAForADC(sc->divisor, true);
 
-
     FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
 
     // 50ms for the resonant antenna to settle.
@@ -132,6 +139,26 @@ static void zx_send(uint8_t *cmd, uint8_t clen) {
     turn_read_lf_on(ZX_TEOF * 8);
 }
 
+static void zx_get(bool ledcontrol) {
+
+    while (BUTTON_PRESS() == false) {
+
+        WDT_HIT();
+
+        if (ledcontrol && (AT91C_BASE_SSC->SSC_SR & AT91C_SSC_TXRDY)) {
+            LED_D_ON();
+        }
+
+        if (AT91C_BASE_SSC->SSC_SR & AT91C_SSC_RXRDY) {
+            volatile uint8_t sample = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+            (void)sample;
+
+            // Test point 8 (TP8) can be used to trigger oscilloscope
+            if (ledcontrol) LED_D_OFF();
+
+        }
+    }
+}
 
 int zx8211_read(zx8211_data_t *zxd, bool ledcontrol) {
     zx8211_setup_read();
@@ -144,13 +171,18 @@ int zx8211_read(zx8211_data_t *zxd, bool ledcontrol) {
     // send GET_UID
     zx_send(NULL, 0);
 
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
+
+    zx_get(ledcontrol);
+
     //uint32_t cs = CRC8Hitag1(uint8_t *buff, size_t size);
 
     if (ledcontrol) LEDsoff();
 
     StopTicks();
     lf_finalize(ledcontrol);
-    //reply_ng(CMD_LF_ZX_READ, status, tag.data, sizeof(tag.data));
+
+    reply_ng(CMD_LF_ZX_READ, PM3_SUCCESS, NULL, 0);
     return PM3_SUCCESS;
 }
 

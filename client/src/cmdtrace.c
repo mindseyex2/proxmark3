@@ -1,9 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2018 iceman <iceman at iuse.se>
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // Trace commands
 //-----------------------------------------------------------------------------
@@ -695,22 +703,22 @@ int CmdTraceList(const char *Cmd) {
                   "Annotate trace buffer with selected protocol data\n"
                   "You can load a trace from file (see `trace load -h`) or it be downloaded from device by default\n",
                   "trace list -t raw      -> just show raw data without annotations\n"
-                  "trace list -t 14a      -> interpret as " _YELLOW_("ISO14443-A") " communications\n"
-                  "trace list -t thinfilm -> interpret as " _YELLOW_("Thinfilm") " communications\n"
-                  "trace list -t topaz    -> interpret as " _YELLOW_("Topaz") " communications\n"
-                  "trace list -t mf       -> interpret as " _YELLOW_("MIFARE Classic") " communications and decrypt crypto1 stream\n"
-                  "trace list -t des      -> interpret as " _YELLOW_("MIFARE DESFire") " communications\n"
-                  "trace list -t 14b      -> interpret as " _YELLOW_("ISO14443-B") " communications\n"
-                  "trace list -t 7816     -> interpret as " _YELLOW_("ISO7816-4") " communications\n"
-                  "trace list -t 15       -> interpret as " _YELLOW_("ISO15693") " communications\n"
-                  "trace list -t iclass   -> interpret as " _YELLOW_("iCLASS") " communications\n"
-                  "trace list -t legic    -> interpret as " _YELLOW_("LEGIC") " communications\n"
-                  "trace list -t felica   -> interpret as " _YELLOW_("ISO18092 / FeliCa") " communications\n"
-                  "trace list -t hitag1   -> interpret as " _YELLOW_("Hitag1") " communications\n"
-                  "trace list -t hitag2   -> interpret as " _YELLOW_("Hitag2") " communications\n"
-                  "trace list -t hitags   -> interpret as " _YELLOW_("HitagS") " communications\n"
-                  "trace list -t lto      -> interpret as " _YELLOW_("LTO-CM") " communications\n"
-                  "trace list -t cryptorf -> interpret as " _YELLOW_("CryptoRF") " communitcations\n"
+                  "trace list -t 14a      -> interpret as " _YELLOW_("ISO14443-A") "\n"
+                  "trace list -t thinfilm -> interpret as " _YELLOW_("Thinfilm") "\n"
+                  "trace list -t topaz    -> interpret as " _YELLOW_("Topaz") "\n"
+                  "trace list -t mf       -> interpret as " _YELLOW_("MIFARE Classic") " and decrypt crypto1 stream\n"
+                  "trace list -t des      -> interpret as " _YELLOW_("MIFARE DESFire") "\n"
+                  "trace list -t 14b      -> interpret as " _YELLOW_("ISO14443-B") "\n"
+                  "trace list -t 7816     -> interpret as " _YELLOW_("ISO7816-4") "\n"
+                  "trace list -t 15       -> interpret as " _YELLOW_("ISO15693") "\n"
+                  "trace list -t iclass   -> interpret as " _YELLOW_("iCLASS") "\n"
+                  "trace list -t legic    -> interpret as " _YELLOW_("LEGIC") "\n"
+                  "trace list -t felica   -> interpret as " _YELLOW_("ISO18092 / FeliCa") "\n"
+                  "trace list -t hitag1   -> interpret as " _YELLOW_("Hitag1") "\n"
+                  "trace list -t hitag2   -> interpret as " _YELLOW_("Hitag2") "\n"
+                  "trace list -t hitags   -> interpret as " _YELLOW_("HitagS") "\n"
+                  "trace list -t lto      -> interpret as " _YELLOW_("LTO-CM") "\n"
+                  "trace list -t cryptorf -> interpret as " _YELLOW_("CryptoRF") "\n\n"
                   "trace list -t mf --dict <mfc_default_keys>    -> use dictionary keys file\n"
                   "trace list -t 14a -f                          -> show frame delay times\n"
                   "trace list -t 14a -1                          -> use trace buffer "
@@ -726,10 +734,10 @@ int CmdTraceList(const char *Cmd) {
         arg_lit0("x", NULL, "show hexdump to convert to pcap(ng)\n"
                  "                                   or to import into Wireshark using encapsulation type \"ISO 14443\""),
         arg_str0("t", "type", NULL, "protocol to annotate the trace"),
-        arg_str0(NULL, "dict", "<file>", "use dictionary keys file"),
+        arg_str0(NULL, "dict", "<fn>", "use dictionary keys file"),
         arg_param_end
     };
-    CLIExecWithReturn(ctx, Cmd, argtable, false);
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
 
     bool use_buffer = arg_get_lit(ctx, 1);
     bool show_wait_cycles = arg_get_lit(ctx, 2);
@@ -775,6 +783,11 @@ int CmdTraceList(const char *Cmd) {
     else if (strcmp(type, "lto") == 0)      protocol = LTO;
     else if (strcmp(type, "cryptorf") == 0) protocol = PROTO_CRYPTORF;
     else if (strcmp(type, "raw") == 0)      protocol = -1;
+    else if (strcmp(type, "") == 0)         protocol = -1;
+    else {
+        PrintAndLogEx(FAILED, "Unknown protocol \"%s\"", type);
+        return PM3_EINVARG;
+    }
 
     if (use_buffer == false) {
         download_trace();

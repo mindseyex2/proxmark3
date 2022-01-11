@@ -1,9 +1,17 @@
 //-----------------------------------------------------------------------------
-// Ultralight Code (c) 2013,2014 Midnitesnake & Andy Davies of Pentura
-// 2015,2016,2017 Iceman, Marshmellow
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // High frequency MIFARE ULTRALIGHT (C) commands
 //-----------------------------------------------------------------------------
@@ -475,7 +483,7 @@ static int ul_print_default(uint8_t *data, uint8_t *real_uid) {
     return PM3_SUCCESS;
 }
 
-static int ndef_get_maxsize(uint8_t *data) {
+static int ndef_get_maxsize(const uint8_t *data) {
     // no NDEF message
     if (data[0] != 0xE1)
         return 0;
@@ -1113,8 +1121,8 @@ typedef struct {
     uint8_t mpos;
     uint8_t mlen;
     const char *match;
-    uint32_t (*Pwd)(uint8_t *uid);
-    uint16_t (*Pack)(uint8_t *uid);
+    uint32_t (*Pwd)(const uint8_t *uid);
+    uint16_t (*Pack)(const uint8_t *uid);
     const char *hint;
 } mfu_identify_t;
 

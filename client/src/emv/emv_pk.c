@@ -1,17 +1,22 @@
-/*
- * libopenemv - a library to work with EMV family of smart cards
- * Copyright (C) 2012, 2015 Dmitry Eremin-Solenikov
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- */
+//-----------------------------------------------------------------------------
+// Borrowed initially from https://github.com/lumag/emv-tools/
+// Copyright (C) 2012, 2015 Dmitry Eremin-Solenikov
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
+//-----------------------------------------------------------------------------
+// libopenemv - a library to work with EMV family of smart cards
+//-----------------------------------------------------------------------------
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -197,7 +202,7 @@ struct emv_pk *emv_pk_parse_pk(char *buf, size_t buflen) {
         goto out;
     buf += l;
 
-    r->modulus = malloc(2048 / 8);
+    r->modulus = calloc(1, (2048 / 8));
     l = emv_pk_read_bin(buf, buflen, r->modulus, 2048 / 8, &r->mlen);
     if (l <= 0)
         goto out2;
@@ -262,8 +267,8 @@ static size_t emv_pk_write_str(char *out, size_t outlen, const char *str) {
 
 char *emv_pk_dump_pk(const struct emv_pk *pk) {
     size_t outpos = 0;
-    size_t outsize = 1024; /* should be enough */
-    char *out = malloc(outsize); /* should be enough */
+    size_t outsize = 1048;          // should be enough
+    char *out = calloc(1, outsize); // should be enough
     if (!out)
         return NULL;
 

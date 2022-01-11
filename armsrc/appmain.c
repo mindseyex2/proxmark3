@@ -1,10 +1,19 @@
 //-----------------------------------------------------------------------------
-// Jonathan Westhues, Mar 2006
-// Edits by Gerhard de Koning Gans, Sep 2007 (##)
+// Copyright (C) Jonathan Westhues, Mar 2006
+// Copyright (C) Gerhard de Koning Gans, Sep 2007
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // The main application code. This is the first thing called after start.c
 // executes.
@@ -23,6 +32,7 @@
 #include "printf.h"
 #include "legicrf.h"
 #include "BigBuf.h"
+#include "iclass_cmd.h"
 #include "iso14443a.h"
 #include "iso14443b.h"
 #include "iso15693.h"
@@ -1093,7 +1103,7 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_LF_HITAGS_TEST_TRACES: { // Tests every challenge within the given file
-            check_challenges((bool)packet->oldarg[0], packet->data.asBytes, true);
+            Hitag_check_challenges(packet->data.asBytes, packet->oldarg[0], true);
             break;
         }
         case CMD_LF_HITAGS_READ: { //Reader for only Hitag S tags, args = key or challenge
@@ -1685,7 +1695,8 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_ICLASS_READER: {
-            ReaderIClass(packet->oldarg[0]);
+            iclass_card_select_t *payload = (iclass_card_select_t *) packet->data.asBytes;
+            ReaderIClass(payload->flags);
             break;
         }
         case CMD_HF_ICLASS_EML_MEMSET: {

@@ -1,11 +1,19 @@
 //-----------------------------------------------------------------------------
-// Merlok - June 2011, 2012
-// Gerhard de Koning Gans - May 2008
-// Hagen Fritsch - June 2010
+// Copyright (C) Jonathan Westhues, Nov 2006
+// Copyright (C) Gerhard de Koning Gans - May 2008
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // Routines to support ISO 14443 type A.
 //-----------------------------------------------------------------------------
@@ -793,7 +801,7 @@ void RAMFUNC SniffIso14443a(uint8_t param) {
 //-----------------------------------------------------------------------------
 // Prepare tag messages
 //-----------------------------------------------------------------------------
-static void CodeIso14443aAsTagPar(const uint8_t *cmd, uint16_t len, uint8_t *par, bool collision) {
+static void CodeIso14443aAsTagPar(const uint8_t *cmd, uint16_t len, const uint8_t *par, bool collision) {
 
     tosend_reset();
 
@@ -1346,8 +1354,8 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 
     // main loop
     bool finished = false;
-    bool button_pushed = BUTTON_PRESS();
-    while (!button_pushed && !finished) {
+    while (finished == false) {
+        // BUTTON_PRESS check done in GetIso14443aCommandFromReader
         WDT_HIT();
 
         tag_response_info_t *p_response = NULL;
@@ -2039,7 +2047,7 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
     }
 }
 
-int EmSendCmd14443aRaw(uint8_t *resp, uint16_t respLen) {
+int EmSendCmd14443aRaw(const uint8_t *resp, uint16_t respLen) {
     volatile uint8_t b;
     uint16_t i = 0;
     uint32_t ThisTransferTime;
@@ -2404,7 +2412,7 @@ void iso14443a_antifuzz(uint32_t flags) {
     BigBuf_free_keep_EM();
 }
 
-static void iso14a_set_ATS_times(uint8_t *ats) {
+static void iso14a_set_ATS_times(const uint8_t *ats) {
 
     if (ats[0] > 1) {                           // there is a format byte T0
         if ((ats[1] & 0x20) == 0x20) {          // there is an interface byte TB(1)

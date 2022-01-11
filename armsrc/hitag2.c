@@ -1,24 +1,18 @@
 //-----------------------------------------------------------------------------
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
-//-----------------------------------------------------------------------------
-// Hitag2 emulation
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// (c) 2009 Henryk Plötz <henryk@ploetzli.ch>
-//-----------------------------------------------------------------------------
-// Hitag2 complete rewrite of the code
-// - Fixed modulation/encoding issues
-// - Rewrote code for transponder emulation
-// - Added sniffing of transponder communication
-// - Added reader functionality
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// (c) 2012 Roel Verdult
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
-// Piwi, 2019
-// Iceman, 2019
-// Anon, 2019
-// Doegox, 2020
 
 #define DBG  if (g_dbglevel >= DBG_EXTENDED)
 
@@ -1152,7 +1146,7 @@ void SniffHitag2(bool ledcontrol) {
     AT91C_BASE_TCB->TCB_BCR = 1;
 
     int frame_count = 0, response = 0, overflow = 0, lastbit = 1, tag_sof = 4;
-    bool rising_edge = false, reader_frame = false, bSkip = true;
+    bool rising_edge, reader_frame = false, bSkip = true;
     uint8_t rx[HITAG_FRAME_LEN];
     size_t rxlen = 0;
 
@@ -1369,10 +1363,12 @@ void SimulateHitag2(bool ledcontrol) {
         // use malloc
         initSampleBufferEx(&signal_size, true);
 
-        if (ledcontrol) LED_D_ON();
+        if (ledcontrol) {
+            LED_D_ON();
+            LED_A_OFF();
+        }
 
 //        lf_reset_counter();
-        if (ledcontrol) LED_A_OFF();
         WDT_HIT();
 
         /*
@@ -1919,6 +1915,11 @@ out:
 
     // release allocated memory from BigBuff.
     BigBuf_free();
+    //
+    if (checked == -1) {
+        // user interupted
+        reply_mix(CMD_ACK, false, 0, 0, 0, 0);
+    }
 
     if (bSuccessful)
         reply_mix(CMD_ACK, bSuccessful, 0, 0, (uint8_t *)tag.sectors, tag_size);
@@ -2237,5 +2238,9 @@ out:
     // release allocated memory from BigBuff.
     BigBuf_free();
 
-    reply_mix(CMD_ACK, bSuccessful, 0, 0, (uint8_t *)tag.sectors, tag_size);
+    if (checked == -1) {
+        reply_mix(CMD_ACK, false, 0, 0, 0, 0);
+    } else {
+        reply_mix(CMD_ACK, bSuccessful, 0, 0, (uint8_t *)tag.sectors, tag_size);
+    }
 }

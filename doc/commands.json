@@ -744,9 +744,10 @@
                 "-m, -m, --make make cdoldata from cdol (tag 8c and 8d) and parameters (by default uses default parameters)",
                 "-a, -a, --apdu show apdu reqests and responses",
                 "-t, -t, --tlv tlv decode results of selected applets",
-                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default."
+                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
+                "<hex> cdoldata/cdol"
             ],
-            "usage": "emv genac [-hkcpmatw] [-d <aac|tc|arqc>] <hex cdoldata/cdol> [<hex cdoldata/cdol>]..."
+            "usage": "emv genac [-hkcpmatw] [-d <aac|tc|arqc>] <hex> [<hex>]..."
         },
         "emv gpo": {
             "command": "emv gpo",
@@ -764,9 +765,10 @@
                 "-m, -m, --make make pdoldata from pdol (tag 9f38) and parameters (by default uses default parameters)",
                 "-a, -a, --apdu show apdu reqests and responses",
                 "-t, -t, --tlv tlv decode results of selected applets",
-                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default."
+                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
+                "<hex> pdoldata/pdol"
             ],
-            "usage": "emv gpo [-hkpmatw] [<hex pdoldata/pdol>]..."
+            "usage": "emv gpo [-hkpmatw] [<hex>]..."
         },
         "emv help": {
             "command": "emv help",
@@ -808,9 +810,10 @@
                 "-m, -m, --make make ddoldata from ddol (tag 9f49) and parameters (by default uses default parameters)",
                 "-a, -a, --apdu show apdu reqests and responses",
                 "-t, -t, --tlv tlv decode results of selected applets",
-                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default."
+                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
+                "<hex> ddoldata/ddol"
             ],
-            "usage": "emv intauth [-hkpmatw] <hex ddoldata/ddol> [<hex ddoldata/ddol>]..."
+            "usage": "emv intauth [-hkpmatw] <hex> [<hex>]..."
         },
         "emv list": {
             "command": "emv list",
@@ -866,9 +869,10 @@
                 "-k, -k, --keep keep field on for next command",
                 "-a, -a, --apdu show apdu reqests and responses",
                 "-t, -t, --tlv tlv decode results of selected applets",
-                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default."
+                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
+                "<hex> <sfi 1 byte><sfirecord 1 byte"
             ],
-            "usage": "emv readrec [-hkatw] <sfi 1byte hex><sfirecord 1byte hex> [<sfi 1byte hex><sfirecord 1byte hex>]..."
+            "usage": "emv readrec [-hkatw] <hex> [<hex>]..."
         },
         "emv roca": {
             "command": "emv roca",
@@ -907,9 +911,9 @@
                 "-g, -g, --acgpo visa. generate ac from gpo.",
                 "-m, -m, --merge merge output file with card's data. (warning: the file may be corrupted!)",
                 "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
-                "output.json json output file name"
+                "<fn> json output filename"
             ],
-            "usage": "emv scan [-hatejvcxgmw] by default: output.json"
+            "usage": "emv scan [-hatejvcxgmw] by default: <fn>"
         },
         "emv search": {
             "command": "emv search",
@@ -943,9 +947,10 @@
                 "-k, -k, --keep keep field for next command",
                 "-a, -a, --apdu show apdu requests and responses",
                 "-t, -t, --tlv tlv decode results",
-                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default."
+                "-w, -w, --wired send data via contact (iso7816) interface. contactless interface set by default.",
+                "<hex> applet aid"
             ],
-            "usage": "emv select [-hskatw] <hex applet aid>"
+            "usage": "emv select [-hskatw] <hex>"
         },
         "emv test": {
             "command": "emv test",
@@ -1224,9 +1229,9 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> (optional) filename, if no <name> uid will be used as filename"
+                "-f, --file <fn> (optional) filename, if no <name> uid will be used as filename"
             ],
-            "usage": "hf 14b dump [-h] [-f <filename>]"
+            "usage": "hf 14b dump [-h] [-f <fn>]"
         },
         "hf 14b help": {
             "command": "hf 14b help",
@@ -2315,9 +2320,83 @@
             ],
             "usage": "hf fido reg [-havt] [-f <fn>] [--cp <ascii>] [--ap <ascii>] [--cpx <hex>] [--apx <hex>]"
         },
+        "hf gallagher clone": {
+            "command": "hf gallagher clone",
+            "description": "clone gallagher credentials to a writable desfire card specify site key is required if using non-default key key, lengths for the different crypto: des 8 bytes 2tdea or aes 16 bytes 3tdea 24 bytes aid id, default finds lowest available in range 0x2?81f4, where 0 <= ? <= 0xb.",
+            "notes": [
+                "hf gallagher clone --rc 1 --fc 22 --cn 3333 --il 4 --sitekey 00112233445566778899aabbccddeeff"
+            ],
+            "offline": false,
+            "options": [
+                "-h, --help this help",
+                "-n, --keynum <dec> key number [default = 0]",
+                "-t, --algo <des|2tdea|3tdea|aes> crypt algo: des, 2tdea, 3tdea, aes",
+                "-k, --key <hex> key for authentication to the picc",
+                "--rc <dec> region code. 4 bits max",
+                "--fc <dec> facility code. 2 bytes max",
+                "--cn <dec> card number. 3 bytes max",
+                "--il <dec> issue level. 4 bits max",
+                "--aid <hex> application id to write (3 bytes)",
+                "--sitekey <hex> site key to compute diversified keys (16 bytes)",
+                "--apdu show apdu requests and responses",
+                "-v, --verbose verbose mode"
+            ],
+            "usage": "hf gallagher clone [-hv] [-n <dec>] [-t <des|2tdea|3tdea|aes>] [-k <hex>] --rc <dec> --fc <dec> --cn <dec> --il <dec> [--aid <hex>] [--sitekey <hex>] [--apdu]"
+        },
+        "hf gallagher delete": {
+            "command": "hf gallagher delete",
+            "description": "delete gallagher application from a desfire card specify site key is required if using non-default key",
+            "notes": [
+                "hf gallagher delete --aid 2081f4 --sitekey 00112233445566778899aabbccddeeff"
+            ],
+            "offline": false,
+            "options": [
+                "-h, --help this help",
+                "--aid <hex> application id to delete (3 bytes)",
+                "--sitekey <hex> site key to compute diversified keys (16 bytes)",
+                "--apdu show apdu requests and responses",
+                "-v, --verbose verbose mode"
+            ],
+            "usage": "hf gallagher delete [-hv] --aid <hex> [--sitekey <hex>] [--apdu]"
+        },
+        "hf gallagher diversifykey": {
+            "command": "hf gallagher diversifykey",
+            "description": "diversify gallagher key specify site key is required if using non-default key",
+            "notes": [
+                "hf gallagher diversify --uid 11223344556677 --aid 2081f4"
+            ],
+            "offline": true,
+            "options": [
+                "-h, --help this help",
+                "--aid <hex> application id for diversification (3 bytes)",
+                "--keynum <dec> key number [default = 0]",
+                "--uid <hex> card uid to delete (4 or 7 bytes)",
+                "--sitekey <hex> site key to compute diversified keys (16 bytes)",
+                "--apdu show apdu requests and responses"
+            ],
+            "usage": "hf gallagher diversify [-h] --aid <hex> [--keynum <dec>] [--uid <hex>] [--sitekey <hex>] [--apdu]"
+        },
+        "hf gallagher help": {
+            "command": "hf gallagher help",
+            "description": "help this help diversifykey diversify gallagher key --------------------------------------------------------------------------------------- hf gallagher reader available offline: no read a gallagher desfire tag from the card application directory, cad specify site key is required if using non-default key",
+            "notes": [
+                "hf gallagher reader -@ -> continuous reader mode",
+                "hf gallagher reader --aid 2081f4 --sitekey 00112233445566778899aabbccddeeff -> skip cad"
+            ],
+            "offline": true,
+            "options": [
+                "-h, --help this help",
+                "--aid <hex> application id to read (3 bytes). if specified, the cad is not used",
+                "--sitekey <hex> site key to compute diversified keys (16 bytes)",
+                "-@, --continuous continuous reader mode",
+                "--apdu show apdu requests and responses",
+                "-v, --verbose verbose mode"
+            ],
+            "usage": "hf gallagher reader [-h@v] [--aid <hex>] [--sitekey <hex>] [--apdu]"
+        },
         "hf help": {
             "command": "hf help",
-            "description": "-------- ----------------------- high frequency ----------------------- 14a { iso14443a rfids... } 14b { iso14443b rfids... } 15 { iso15693 rfids... } cipurse { cipurse transport cards... } epa { german identification card... } emrtd { machine readable travel document... } felica { iso18092 / felica rfids... } fido { fido and fido2 authenticators... } ksx6924 { ks x 6924 (t-money, snapper+) rfids } jooki { jooki rfids... } iclass { iclass rfids... } legic { legic rfids... } lto { lto cartridge memory rfids... } mf { mifare rfids... } mfp { mifare plus rfids... } mfu { mifare ultralight rfids... } mfdes { mifare desfire rfids... } seos { seos rfids... } st25ta { st25ta rfids... } thinfilm { thinfilm rfids... } topaz { topaz (nfc type 1) rfids... } waveshare { waveshare nfc epaper... } ----------- --------------------- general --------------------- help this help list list protocol data in trace buffer search search for known hf tags --------------------------------------------------------------------------------------- hf list available offline: yes alias of `trace list -t raw` with selected protocol data to annotate trace buffer you can load a trace from file (see `trace load -h`) or it be downloaded from device by default it accepts all other arguments of `trace list`. note that some might not be relevant for this specific protocol",
+            "description": "-------- ----------------------- high frequency ----------------------- 14a { iso14443a rfids... } 14b { iso14443b rfids... } 15 { iso15693 rfids... } cipurse { cipurse transport cards... } epa { german identification card... } emrtd { machine readable travel document... } felica { iso18092 / felica rfids... } fido { fido and fido2 authenticators... } gallagher { gallagher desfire rfids... } ksx6924 { ks x 6924 (t-money, snapper+) rfids } jooki { jooki rfids... } iclass { iclass rfids... } legic { legic rfids... } lto { lto cartridge memory rfids... } mf { mifare rfids... } mfp { mifare plus rfids... } mfu { mifare ultralight rfids... } mfdes { mifare desfire rfids... } seos { seos rfids... } st25ta { st25ta rfids... } thinfilm { thinfilm rfids... } topaz { topaz (nfc type 1) rfids... } waveshare { waveshare nfc epaper... } ----------- --------------------- general --------------------- help this help list list protocol data in trace buffer search search for known hf tags --------------------------------------------------------------------------------------- hf list available offline: yes alias of `trace list -t raw` with selected protocol data to annotate trace buffer you can load a trace from file (see `trace load -h`) or it be downloaded from device by default it accepts all other arguments of `trace list`. note that some might not be relevant for this specific protocol",
             "notes": [
                 "hf list -f -> show frame delay times",
                 "hf list -1 -> use trace buffer"
@@ -2930,7 +3009,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> specify a filename for dump file",
+                "-f, --file <fn> dump filename",
                 "--de deobfuscate dump data (xor with mcc)"
             ],
             "usage": "hf legic dump [-h] [-f <fn>] [--de]"
@@ -2946,11 +3025,11 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> specify a filename to restore",
+                "-f, --file <fn> filename to restore",
                 "-t, --type <dec> tag type to simulate.",
                 "--obfuscate obfuscate dump data (xor with mcc)"
             ],
-            "usage": "hf legic eload [-h] -f <filename> [-t <dec>] [--obfuscate]"
+            "usage": "hf legic eload [-h] -f <fn> [-t <dec>] [--obfuscate]"
         },
         "hf legic esave": {
             "command": "hf legic esave",
@@ -2964,7 +3043,7 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> specify a filename to save",
+                "-f, --file <fn> filename to save",
                 "-t, --type <dec> tag type",
                 "--deobfuscate de-obfuscate dump data (xor with mcc)"
             ],
@@ -3043,10 +3122,10 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> specify a filename to restore",
+                "-f, --file <fn> filename to restore",
                 "--ob obfuscate dump data (xor with mcc)"
             ],
-            "usage": "hf legic restore [-h] -f <filename> [--ob]"
+            "usage": "hf legic restore [-h] -f <fn> [--ob]"
         },
         "hf legic sim": {
             "command": "hf legic sim",
@@ -3160,9 +3239,9 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> specify a filename for dumpfile"
+                "-f, --file <fn> specify a filename for dumpfile"
             ],
-            "usage": "hf lto restore [-h] -f <filename>"
+            "usage": "hf lto restore [-h] -f <fn>"
         },
         "hf lto wrbl": {
             "command": "hf lto wrbl",
@@ -4297,9 +4376,10 @@
                 "--ks1 <key settings hex> key settings 1 (hex 1 byte). application master key settings. default 0x0f",
                 "--ks2 <key settings hex> key settings 2 (hex 1 byte). default 0x0e",
                 "--dstalgo <des/2tdea/3tdea/aes> application key crypt algo: des, 2tdea, 3tdea, aes. default des",
-                "--numkeys <number of keys> keys count. 0x00..0x0e. default 0x0e"
+                "--numkeys <number of keys> keys count. 0x00..0x0e. default 0x0e",
+                "--no-auth execute without authentication"
             ],
-            "usage": "hf mfdes createapp [-hav] [-n <keyno>] [-t <des/2tdea/3tdea/aes>] [-k <key>] [-f <none/an10922/gallagher>] [-i <kdfi>] [-m <plain/mac/encrypt>] [-c <native/niso/iso>] [-s <d40/ev1/ev2/lrp>] [--rawdata <rawdata hex>] [--aid <app id hex>] [--fid <file id hex>] [--dfname <df name str>] [--ks1 <key settings hex>] [--ks2 <key settings hex>] [--dstalgo <des/2tdea/3tdea/aes>] [--numkeys <number of keys>]"
+            "usage": "hf mfdes createapp [-hav] [-n <keyno>] [-t <des/2tdea/3tdea/aes>] [-k <key>] [-f <none/an10922/gallagher>] [-i <kdfi>] [-m <plain/mac/encrypt>] [-c <native/niso/iso>] [-s <d40/ev1/ev2/lrp>] [--rawdata <rawdata hex>] [--aid <app id hex>] [--fid <file id hex>] [--dfname <df name str>] [--ks1 <key settings hex>] [--ks2 <key settings hex>] [--dstalgo <des/2tdea/3tdea/aes>] [--numkeys <number of keys>] [--no-auth]"
         },
         "hf mfdes createfile": {
             "command": "hf mfdes createfile",
@@ -5934,9 +6014,9 @@
                 "-h, --help this help",
                 "-m <nr> model number [0 - 7] of your tag",
                 "-s, --save save dithered version in filename-[n].bmp, only for rgb bmp",
-                "-f, --file <filename> filename[.bmp] to upload to tag"
+                "-f, --file <fn> specify filename[.bmp] to upload to tag"
             ],
-            "usage": "hf waveshare loadbmp [-hs] -m <nr> -f <filename>"
+            "usage": "hf waveshare loadbmp [-hs] -m <nr> -f <fn>"
         },
         "hints": {
             "command": "hints",
@@ -6667,7 +6747,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> dictionary filename"
+                "-f, --file <fn> specify dictionary filename"
             ],
             "usage": "lf em 4x50 chk [-h] [-f <fn>]"
         },
@@ -6683,7 +6763,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> dump filename (bin/eml/json)",
+                "-f, --file <fn> specify dump filename (bin/eml/json)",
                 "-p, --pwd <hex> password, 4 hex bytes, lsb"
             ],
             "usage": "lf em 4x50 dump [-h] [-f <fn>] [-p <hex>]"
@@ -6697,7 +6777,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --filename <fn> dump filename (bin/eml/json)"
+                "-f, --file <fn> dump filename (bin/eml/json)"
             ],
             "usage": "lf em 4x50 eload [-h] -f <fn>"
         },
@@ -6711,7 +6791,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> save filename"
+                "-f, --file <fn> specifiy filename"
             ],
             "usage": "lf em 4x50 esave [-h] [-f <fn>]"
         },
@@ -6812,7 +6892,7 @@
             "options": [
                 "-h, --help this help",
                 "-u, --uid <hex> uid, 4 hex bytes, msb",
-                "-f, --file <fn> dump filename (bin/eml/json)",
+                "-f, --file <fn> specify dump filename (bin/eml/json)",
                 "-p, --pwd <hex> password, 4 hex bytes, lsb"
             ],
             "usage": "lf em 4x50 restore [-h] [-u <hex>] [-f <fn>] [-p <hex>]"
@@ -7114,7 +7194,7 @@
         },
         "lf gproxii clone": {
             "command": "lf gproxii clone",
-            "description": "clone a guardall tag to a t55x7, q5/t5555 or em4305/4469 tag. the facility-code is 8-bit and the card number is 16-bit. larger values are truncated. currently work only on 26bit",
+            "description": "clone a guardall tag to a t55x7, q5/t5555 or em4305/4469 tag. the facility-code is 8-bit and the card number is 20-bit. larger values are truncated. currently work only on 26 | 36 bit format",
             "notes": [
                 "lf gproxii clone --fmt 26 --fc 123 --cn 1337",
                 "lf gproxii clone --q5 --fmt 26 --fc 123 --cn 1337 -> encode for q5/t5555 tag",
@@ -7160,7 +7240,7 @@
         },
         "lf gproxii sim": {
             "command": "lf gproxii sim",
-            "description": "enables simulation of guardall card with specified card number. simulation runs until the button is pressed or another usb command is issued. the facility-code is 8-bit and the card number is 16-bit. larger values are truncated. currently work only on 26bit",
+            "description": "enables simulation of guardall card with specified card number. simulation runs until the button is pressed or another usb command is issued. the facility-code is 8-bit and the card number is 16-bit. larger values are truncated. currently work only on 26 | 36 bit format",
             "notes": [
                 "lf gproxii sim --fmt 26 --fc 123 --cn 1337"
             ],
@@ -7175,7 +7255,7 @@
         },
         "lf help": {
             "command": "lf help",
-            "description": "help this help ----------- -------------- low frequency -------------- awid { awid rfids... } cotag { cotag chips... } destron { fdx-a destron rfids... } em { em chips & rfids... } fdxb { fdx-b rfids... } gallagher { gallagher rfids... } gproxii { guardall prox ii rfids... } hid { hid prox rfids... } hitag { hitag chips... } idteck { idteck rfids... } indala { indala rfids... } io { ioprox rfids... } jablotron { jablotron rfids... } keri { keri rfids... } motorola { motorola rfids... } nedap { nedap rfids... } nexwatch { nexwatch rfids... } noralsy { noralsy rfids... } pac { pac/stanley rfids... } paradox { paradox rfids... } pcf7931 { pcf7931 chips... } presco { presco rfids... } pyramid { farpointe/pyramid rfids... } securakey { securakey rfids... } ti { ti chips... } t55xx { t55xx chips... } viking { viking rfids... } visa2000 { visa2000 rfids... } zx { zx8211 rfids... } ----------- --------------------- general --------------------- search read and search for valid known tag --------------------------------------------------------------------------------------- lf config available offline: no get/set config for lf sampling, bit/sample, decimation, frequency these changes are temporary, will be reset after a power cycle. - use `lf read` performs a read (active field) - use `lf sniff` performs a sniff (no active field)",
+            "description": "help this help ----------- -------------- low frequency -------------- awid { awid rfids... } cotag { cotag chips... } destron { fdx-a destron rfids... } em { em chips & rfids... } fdxb { fdx-b rfids... } gallagher { gallagher rfids... } gproxii { guardall prox ii rfids... } hid { hid prox rfids... } hitag { hitag chips... } idteck { idteck rfids... } indala { indala rfids... } io { ioprox rfids... } jablotron { jablotron rfids... } keri { keri rfids... } motorola { motorola rfids... } nedap { nedap rfids... } nexwatch { nexwatch rfids... } noralsy { noralsy rfids... } pac { pac/stanley rfids... } paradox { paradox rfids... } pcf7931 { pcf7931 chips... } presco { presco rfids... } pyramid { farpointe/pyramid rfids... } securakey { securakey rfids... } ti { ti chips... } t55xx { t55xx chips... } viking { viking rfids... } visa2000 { visa2000 rfids... } ----------- --------------------- general --------------------- search read and search for valid known tag --------------------------------------------------------------------------------------- lf config available offline: no get/set config for lf sampling, bit/sample, decimation, frequency these changes are temporary, will be reset after a power cycle. - use `lf read` performs a read (active field) - use `lf sniff` performs a sniff (no active field)",
             "notes": [
                 "lf config -> shows current config",
                 "lf config -b 8 --125 -> samples at 125 khz, 8 bps",
@@ -7320,7 +7400,7 @@
                 "-h, --help this help",
                 "-f, --file <fn> filename to load ( w/o ext )"
             ],
-            "usage": "lf hitag cc [-h] [-f <fn>]"
+            "usage": "lf hitag cc [-h] -f <fn>"
         },
         "lf hitag dump": {
             "command": "lf hitag dump",
@@ -7332,7 +7412,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --file <fn> file name",
+                "-f, --file <fn> specify file name",
                 "-k, --key <hex> key, 4 or 6 hex bytes",
                 "--nrar <hex> nonce / answer reader, 8 hex bytes"
             ],
@@ -7347,13 +7427,13 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> filename of dump",
+                "-f, --file <fn> specfiy dump filename",
                 "-1 card type hitag1",
                 "-2 card type hitag2",
                 "-s card type hitags",
                 "-m card type hitagm"
             ],
-            "usage": "lf hitag eload [-h12sm] -f <filename>"
+            "usage": "lf hitag eload [-h12sm] -f <fn>"
         },
         "lf hitag info": {
             "command": "lf hitag info",
@@ -9096,31 +9176,6 @@
             ],
             "usage": "lf visa2000 sim [-h] --cn <dec>"
         },
-        "lf zx help": {
-            "command": "lf zx help",
-            "description": "help this help demod demodulate an zx 8211 tag from the graphbuffer --------------------------------------------------------------------------------------- lf zx demod available offline: yes try to find zx8211 preamble, if found decode / descramble data",
-            "notes": [
-                "lf zx demod"
-            ],
-            "offline": true,
-            "options": [
-                "-h, --help this help"
-            ],
-            "usage": "lf zx demod [-h]"
-        },
-        "lf zx reader": {
-            "command": "lf zx reader",
-            "description": "read a zx tag",
-            "notes": [
-                "lf zx reader -@ -> continuous reader mode"
-            ],
-            "offline": false,
-            "options": [
-                "-h, --help this help",
-                "-@ optional - continuous reader mode"
-            ],
-            "usage": "lf zx reader [-h@]"
-        },
         "mem dump": {
             "command": "mem dump",
             "description": "dumps flash memory on device into a file or view in console",
@@ -9135,10 +9190,10 @@
                 "-o, --offset <dec> offset in memory",
                 "-l, --len <dec> length",
                 "-v, --view view dump",
-                "-f, --file <filename> file name",
+                "-f, --file <fn> save filename",
                 "-c, --cols <dec> column breaks (def 32)"
             ],
-            "usage": "mem dump [-hv] [-o <dec>] [-l <dec>] [-f <filename>] [-c <dec>]"
+            "usage": "mem dump [-hv] [-o <dec>] [-l <dec>] [-f <fn>] [-c <dec>]"
         },
         "mem help": {
             "command": "mem help",
@@ -9186,9 +9241,9 @@
                 "-m, --mifare, --mfc upload 6 bytes keys (mifare key dictionary)",
                 "-i, --iclass upload 8 bytes keys (iclass key dictionary)",
                 "-t, --t55xx upload 4 bytes keys (password dictionary)",
-                "-f, --file <filename> file name"
+                "-f, --file <fn> file name"
             ],
-            "usage": "mem load [-hmit] [-o <dec>] -f <filename>"
+            "usage": "mem load [-hmit] [-o <dec>] -f <fn>"
         },
         "mem spiffs check": {
             "command": "mem spiffs check",
@@ -9265,7 +9320,7 @@
             "offline": false,
             "options": [
                 "-h, --help this help",
-                "-f, --filename <fn> file to remove"
+                "-f, --file <fn> file to remove"
             ],
             "usage": "mem spiffs remove [-h] -f <fn>"
         },
@@ -9926,31 +9981,32 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> firmware file name"
+                "-f, --file <fn> specify firmware file name"
             ],
-            "usage": "smart upgrade [-h] -f <filename>"
+            "usage": "smart upgrade [-h] -f <fn>"
         },
         "trace help": {
             "command": "trace help",
             "description": "help this help list list protocol data in trace buffer load load trace from file save save trace buffer to file --------------------------------------------------------------------------------------- trace list available offline: yes annotate trace buffer with selected protocol data you can load a trace from file (see `trace load -h`) or it be downloaded from device by default",
             "notes": [
                 "trace list -t raw -> just show raw data without annotations",
-                "trace list -t 14a -> interpret as iso14443-a communications",
-                "trace list -t thinfilm -> interpret as thinfilm communications",
-                "trace list -t topaz -> interpret as topaz communications",
-                "trace list -t mf -> interpret as mifare classic communications and decrypt crypto1 stream",
-                "trace list -t des -> interpret as mifare desfire communications",
-                "trace list -t 14b -> interpret as iso14443-b communications",
-                "trace list -t 7816 -> interpret as iso7816-4 communications",
-                "trace list -t 15 -> interpret as iso15693 communications",
-                "trace list -t iclass -> interpret as iclass communications",
-                "trace list -t legic -> interpret as legic communications",
-                "trace list -t felica -> interpret as iso18092 / felica communications",
-                "trace list -t hitag1 -> interpret as hitag1 communications",
-                "trace list -t hitag2 -> interpret as hitag2 communications",
-                "trace list -t hitags -> interpret as hitags communications",
-                "trace list -t lto -> interpret as lto-cm communications",
-                "trace list -t cryptorf -> interpret as cryptorf communitcations",
+                "trace list -t 14a -> interpret as iso14443-a",
+                "trace list -t thinfilm -> interpret as thinfilm",
+                "trace list -t topaz -> interpret as topaz",
+                "trace list -t mf -> interpret as mifare classic and decrypt crypto1 stream",
+                "trace list -t des -> interpret as mifare desfire",
+                "trace list -t 14b -> interpret as iso14443-b",
+                "trace list -t 7816 -> interpret as iso7816-4",
+                "trace list -t 15 -> interpret as iso15693",
+                "trace list -t iclass -> interpret as iclass",
+                "trace list -t legic -> interpret as legic",
+                "trace list -t felica -> interpret as iso18092 / felica",
+                "trace list -t hitag1 -> interpret as hitag1",
+                "trace list -t hitag2 -> interpret as hitag2",
+                "trace list -t hitags -> interpret as hitags",
+                "trace list -t lto -> interpret as lto-cm",
+                "trace list -t cryptorf -> interpret as cryptorf",
+                "",
                 "trace list -t mf --dict <mfc_default_keys> -> use dictionary keys file",
                 "trace list -t 14a -f -> show frame delay times",
                 "trace list -t 14a -1 -> use trace buffer"
@@ -9966,9 +10022,9 @@
                 "-x show hexdump to convert to pcap(ng)",
                 "or to import into wireshark using encapsulation type \"iso 14443\"",
                 "-t, --type <string> protocol to annotate the trace",
-                "--dict <file> use dictionary keys file"
+                "--dict <fn> use dictionary keys file"
             ],
-            "usage": "trace list [-h1fcrux] [-t <string>] [--dict <file>]"
+            "usage": "trace list [-h1fcrux] [-t <string>] [--dict <fn>]"
         },
         "trace load": {
             "command": "trace load",
@@ -9979,9 +10035,9 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> trace file to load"
+                "-f, --file <fn> specify trace file to load"
             ],
-            "usage": "trace load [-h] -f <filename>"
+            "usage": "trace load [-h] -f <fn>"
         },
         "trace save": {
             "command": "trace save",
@@ -9992,9 +10048,9 @@
             "offline": true,
             "options": [
                 "-h, --help this help",
-                "-f, --file <filename> trace file to save"
+                "-f, --file <fn> specify trace file to save"
             ],
-            "usage": "trace save [-h] -f <filename>"
+            "usage": "trace save [-h] -f <fn>"
         },
         "usart btfactory": {
             "command": "usart btfactory",
@@ -10154,8 +10210,8 @@
         }
     },
     "metadata": {
-        "commands_extracted": 597,
+        "commands_extracted": 599,
         "extracted_by": "PM3Help2JSON v1.00",
-        "extracted_on": "2022-01-01T01:38:04"
+        "extracted_on": "2022-01-11T01:15:20"
     }
 }

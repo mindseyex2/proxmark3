@@ -1,10 +1,17 @@
 //-----------------------------------------------------------------------------
-// Copyright (C) 2014 Iceman
-// Copyright (C) 2021 Merlok
+// Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
-// This code is licensed to you under the terms of the GNU GPL, version 2 or,
-// at your option, any later version. See the LICENSE.txt file for the text of
-// the license.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
 // High frequency MIFARE Desfire commands
 //-----------------------------------------------------------------------------
@@ -155,6 +162,17 @@ typedef struct aidhdr {
     uint8_t name[16];
 } PACKED aidhdr_t;
 
+typedef struct {
+    const char *aid;
+    const char *comment;
+} mfdesCommonAID_t;
+
+static const mfdesCommonAID_t commonAids[] = {
+    // AID, name/comment
+    { "\xf4\x81\x2f", "Gallagher card data application" },
+    { "\xf4\x81\x20", "Gallagher card application directory" }, // Can be 0xF48120 - 0xF4812B, but I've only ever seen 0xF48120
+};
+
 static int CmdHelp(const char *Cmd);
 
 static int CLIGetUint32Hex(CLIParserContext *ctx, uint8_t paramnum, uint32_t defaultValue, uint32_t *value, bool *valuePresent, uint8_t nlen, const char *lengthErrorStr) {
@@ -242,6 +260,16 @@ static char *getVersionStr(uint8_t major, uint8_t minor) {
     return buf;
 
 //04 01 01 01 00 1A 05
+}
+
+static char noCommentStr[1] = { 0x00 };
+static const char *getAidCommentStr(uint8_t *aid) {
+    for (int i = 0; i < ARRAYLEN(commonAids); i++) {
+        if (memcmp(aid, commonAids[i].aid, 3) == 0) {
+            return commonAids[i].comment;
+        }
+    }
+    return noCommentStr;
 }
 
 static nxp_cardtype_t getCardType(uint8_t major, uint8_t minor) {
@@ -794,7 +822,7 @@ static void DesFill2bPattern(
 
 static int AuthCheckDesfire(DesfireContext_t *dctx,
                             DesfireSecureChannel secureChannel,
-                            uint8_t *aid,
+                            const uint8_t *aid,
                             uint8_t deskeyList[MAX_KEYS_LIST_LEN][8], uint32_t deskeyListLen,
                             uint8_t aeskeyList[MAX_KEYS_LIST_LEN][16], uint32_t aeskeyListLen,
                             uint8_t k3kkeyList[MAX_KEYS_LIST_LEN][24], uint32_t k3kkeyListLen,
@@ -2348,6 +2376,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
         arg_str0(NULL, "ks2",     "<key settings HEX>", "Key settings 2 (HEX 1 byte). default 0x0e"),
         arg_str0(NULL, "dstalgo", "<DES/2TDEA/3TDEA/AES>",  "Application key crypt algo: DES, 2TDEA, 3TDEA, AES. default DES"),
         arg_int0(NULL, "numkeys", "<number of keys>",  "Keys count. 0x00..0x0e. default 0x0e"),
+        arg_lit0(NULL, "no-auth", "execute without authentication"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
@@ -2399,6 +2428,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
     }
 
     int keycount = arg_get_int_def(ctx, 18, 0x0e);
+    bool noauth = arg_get_lit(ctx, 19);
 
     SetAPDULogging(APDULogging);
     CLIParserFree(ctx);
@@ -2423,7 +2453,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
         return PM3_EINVARG;
     }
 
-    res = DesfireSelectAndAuthenticate(&dctx, securechann, 0x000000, verbose);
+    res = DesfireSelectAndAuthenticateEx(&dctx, securechann, 0x000000, noauth, verbose);
     if (res != PM3_SUCCESS) {
         DropField();
         return res;
@@ -3056,8 +3086,13 @@ static int CmdHF14ADesGetAIDs(const char *Cmd) {
 
     if (buflen >= 3) {
         PrintAndLogEx(INFO, "---- " _CYAN_("AID list") " ----");
-        for (int i = 0; i < buflen; i += 3)
-            PrintAndLogEx(INFO, "AID: %06x", DesfireAIDByteToUint(&buf[i]));
+        for (int i = 0; i < buflen; i += 3) {
+            const char *commentStr = getAidCommentStr(&buf[i]);
+            if ((void *) commentStr == &noCommentStr)
+                PrintAndLogEx(INFO, "AID: %06x", DesfireAIDByteToUint(&buf[i]));
+            else
+                PrintAndLogEx(INFO, "AID: %06x (%s)", DesfireAIDByteToUint(&buf[i]), commentStr);
+        }
     } else {
         PrintAndLogEx(INFO, "There is no applications on the card");
     }
