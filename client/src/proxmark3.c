@@ -19,18 +19,12 @@
 #include "proxmark3.h"
 
 #include <stdlib.h>
-#include <stdio.h>         // for Mingw readline
 #include <limits.h>
 #include <unistd.h>
-#ifdef HAVE_READLINE
-#include <readline/readline.h>
-#include <readline/history.h>
-#include "rl_vocabulory.h"
-#include <signal.h>
-#endif
 #include <ctype.h>
 #include <libgen.h>        // basename
 
+#include "pm3line.h"
 #include "usart_defs.h"
 #include "util_posix.h"
 #include "proxgui.h"
@@ -43,9 +37,11 @@
 #include "flash.h"
 #include "preferences.h"
 
+static int mainret = PM3_ESOFT;
+
 #ifndef LIBPM3
 #define BANNERMSG1 ""
-#define BANNERMSG2 "   [ Iceman :snowflake: ]"
+#define BANNERMSG2 "   [ :snowflake: ]"
 #define BANNERMSG3 ""
 
 typedef enum LogoMode { UTF8, ANSI, ASCII } LogoMode;
@@ -77,21 +73,25 @@ static void showBanner_logo(LogoMode mode) {
             break;
         }
         case ANSI: {
-            PrintAndLogEx(NORMAL, "  " _BLUE_("██████╗ ███╗   ███╗█████╗ "));
-            PrintAndLogEx(NORMAL, "  " _BLUE_("██╔══██╗████╗ ████║╚═══██╗"));
-            PrintAndLogEx(NORMAL, "  " _BLUE_("██████╔╝██╔████╔██║ ████╔╝"));
-            PrintAndLogEx(NORMAL, "  " _BLUE_("██╔═══╝ ██║╚██╔╝██║ ╚══██╗"));
-            PrintAndLogEx(NORMAL, "  " _BLUE_("██║     ██║ ╚═╝ ██║█████╔╝") " " BANNERMSG1);
-            PrintAndLogEx(NORMAL, "  " _BLUE_("╚═╝     ╚═╝     ╚═╝╚════╝ ") " " BANNERMSG2);
+            PrintAndLogEx(NORMAL, "  " _CYAN_("8888888b.  888b     d888  .d8888b.   "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888   Y88b 8888b   d8888 d88P  Y88b  "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888    888 88888b.d88888      .d88P  "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888   d88P 888Y88888P888     8888\"  "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("8888888P\"  888 Y888P 888      \"Y8b.  "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888        888  Y8P  888 888    888  "));
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888        888   \"   888 Y88b  d88P") " " BANNERMSG1);
+            PrintAndLogEx(NORMAL, "  " _CYAN_("888        888       888  \"Y8888P\"") " " BANNERMSG2);
             break;
         }
         case ASCII: {
-            PrintAndLogEx(NORMAL, "  ######. ###.   ###.#####. ");
-            PrintAndLogEx(NORMAL, "  ##...##.####. ####. ...##.");
-            PrintAndLogEx(NORMAL, "  ######..##.####.##. ####..");
-            PrintAndLogEx(NORMAL, "  ##..... ##..##..##.  ..##.");
-            PrintAndLogEx(NORMAL, "  ##.     ##.  .. ##.#####.. " BANNERMSG1);
-            PrintAndLogEx(NORMAL, "   ..      ..      .. ..... " BANNERMSG2);
+            PrintAndLogEx(NORMAL, "  8888888b.  888b     d888  .d8888b.     ");
+            PrintAndLogEx(NORMAL, "  888   Y88b 8888b   d8888 d88P  Y88b    ");
+            PrintAndLogEx(NORMAL, "  888    888 88888b.d88888      .d88P    ");
+            PrintAndLogEx(NORMAL, "  888   d88P 888Y88888P888     8888\"    ");
+            PrintAndLogEx(NORMAL, "  8888888P\"  888 Y888P 888      \"Y8b.  ");
+            PrintAndLogEx(NORMAL, "  888        888  Y8P  888 888    888    ");
+            PrintAndLogEx(NORMAL, "  888        888   \"   888 Y88b  d88P " BANNERMSG1);
+            PrintAndLogEx(NORMAL, "  888        888       888  \"Y8888P\" " BANNERMSG2);
             break;
         }
     }
@@ -119,7 +119,7 @@ static void showBanner(void) {
 //    PrintAndLogEx(NORMAL, "\nSupport iceman on patreon - https://www.patreon.com/iceman1001/");
 //    PrintAndLogEx(NORMAL, "                 on paypal - https://www.paypal.me/iceman1001");
 //    PrintAndLogEx(NORMAL, "\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
-    PrintAndLogEx(NORMAL, "");
+//    PrintAndLogEx(NORMAL, "");
     fflush(stdout);
     g_printAndLog = old_printAndLog;
 }
@@ -137,48 +137,16 @@ static int check_comm(void) {
     if (IsCommunicationThreadDead() && g_session.pm3_present) {
         PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") " mode. Use "_YELLOW_("\"hw connect\"") " to reconnect\n");
         prompt_dev = PROXPROMPT_DEV_OFFLINE;
-#ifdef HAVE_READLINE
         char prompt[PROXPROMPT_MAX_SIZE] = {0};
         prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
         char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
         memcpy_filter_ansi(prompt_filtered, prompt, sizeof(prompt_filtered), !g_session.supports_colors);
-        rl_set_prompt(prompt_filtered);
-        rl_redisplay();
-#endif
+        pm3line_update_prompt(prompt_filtered);
         CloseProxmark(g_session.current_device);
     }
     msleep(10);
     return 0;
 }
-#ifdef HAVE_READLINE
-static void flush_history(void) {
-    if (g_session.history_path) {
-        write_history(g_session.history_path);
-        free(g_session.history_path);
-        g_session.history_path = NULL;
-    }
-}
-
-#  if defined(_WIN32)
-/*
-static bool WINAPI terminate_handler(DWORD t) {
-    if (t == CTRL_C_EVENT) {
-        flush_history();
-        return true;
-    }
-    return false;
-}
-*/
-#  else
-static struct sigaction gs_old_sigint_action;
-static void sigint_handler(int signum) {
-    sigaction(SIGINT, &gs_old_sigint_action, NULL);
-    flush_history();
-    kill(0, SIGINT);
-}
-#endif
-
-#endif
 
 #if defined(_WIN32)
 static bool DetectWindowsAnsiSupport(void) {
@@ -263,7 +231,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     if (execCommand || script_cmds_file || stdinOnPipe)
         pm3_version(false, false);
     else
-        pm3_version(true, false);
+        pm3_version_short();
 
     if (script_cmds_file) {
 
@@ -278,30 +246,22 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
         }
     }
 
-#ifdef HAVE_READLINE
     g_session.history_path = NULL;
     if (g_session.incognito) {
         PrintAndLogEx(INFO, "No history will be recorded");
     } else {
+        bool loaded_history = false;
         if (searchHomeFilePath(&g_session.history_path, NULL, PROXHISTORY, true) != PM3_SUCCESS) {
-            PrintAndLogEx(ERR, "No history will be recorded");
             g_session.history_path = NULL;
         } else {
-
-#  if defined(_WIN32)
-            //        SetConsoleCtrlHandler((PHANDLER_ROUTINE)terminate_handler, true);
-#  else
-            struct sigaction action;
-            memset(&action, 0, sizeof(action));
-            action.sa_handler = &sigint_handler;
-            sigaction(SIGINT, &action, &gs_old_sigint_action);
-#  endif
-            rl_catch_signals = 1;
-            rl_set_signals();
-            read_history(g_session.history_path);
+            loaded_history = (pm3line_load_history(g_session.history_path) == PM3_SUCCESS);
+        }
+        if (loaded_history) {
+            pm3line_install_signals();
+        } else {
+            PrintAndLogEx(ERR, "No history will be recorded");
         }
     }
-#endif
 
     // loops every time enter is pressed...
     while (1) {
@@ -378,19 +338,14 @@ check_script:
                     strcleanrn(script_cmd, script_cmd_len);
                     goto check_script;
                 } else {
-#ifdef HAVE_READLINE
-                    rl_event_hook = check_comm;
-#else
-                    check_comm();
-#endif
+                    pm3line_check(check_comm);
                     prompt_ctx = PROXPROMPT_CTX_INTERACTIVE;
                     char prompt[PROXPROMPT_MAX_SIZE] = {0};
                     prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
                     char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
                     memcpy_filter_ansi(prompt_filtered, prompt, sizeof(prompt_filtered), !g_session.supports_colors);
                     g_pendingPrompt = true;
-#ifdef HAVE_READLINE
-                    script_cmd = readline(prompt_filtered);
+                    script_cmd = pm3line_read(prompt_filtered);
 #if defined(_WIN32)
                     //Check if color support needs to be enabled again in case the window buffer did change
                     g_session.supports_colors = DetectWindowsAnsiSupport();
@@ -405,18 +360,6 @@ check_script:
                         strcleanrn(script_cmd, script_cmd_len);
                         goto check_script;
                     }
-#else
-                    printf("%s", prompt_filtered);
-                    cmd = NULL;
-                    size_t len = 0;
-                    int ret;
-                    if ((ret = getline(&cmd, &len, stdin)) < 0) {
-                        // TODO this happens also when kbd_enter_pressed() is used, with a key pressed or not
-                        printf("GETLINE ERR %i", ret);
-                        free(cmd);
-                        cmd = NULL;
-                    }
-#endif
                     fflush(NULL);
                 }
             }
@@ -455,25 +398,22 @@ check_script:
                 PrintAndLogEx(NORMAL, "%s%s", prompt_filtered, cmd);
                 g_printAndLog = old_printAndLog;
 
-#ifdef HAVE_READLINE
                 // add to history if not from a script
                 if (!current_cmdscriptfile()) {
-                    HIST_ENTRY *entry = history_get(history_length);
-                    // add if not identical to latest recorded cmd
-                    if ((!entry) || (strcmp(entry->line, cmd) != 0)) {
-                        add_history(cmd);
-                    }
+                    pm3line_add_history(cmd);
                 }
-#endif
                 // process cmd
                 g_pendingPrompt = false;
-                int ret = CommandReceived(cmd);
-#if defined ICOPYX
-                PrintAndLogEx(NORMAL, "\nNikola.D: %d", ret);
-#endif
+                mainret = CommandReceived(cmd);
+
                 // exit or quit
-                if (ret == PM3_EFATAL)
+                if (mainret == PM3_EFATAL)
                     break;
+                if (mainret == PM3_SQUIT) {
+                    // Normal quit, map to 0
+                    mainret = PM3_SUCCESS;
+                    break;
+                }
             }
             free(cmd);
             cmd = NULL;
@@ -495,9 +435,7 @@ check_script:
     while (current_cmdscriptfile())
         pop_cmdscriptfile();
 
-#ifdef HAVE_READLINE
-    flush_history();
-#endif
+    pm3line_flush_history();
 
     if (cmd) {
         free(cmd);
@@ -638,7 +576,8 @@ static void show_help(bool showFullHelp, char *exec_name) {
         PrintAndLogEx(NORMAL, "      --incognito                         do not use history, prefs file nor log files");
         PrintAndLogEx(NORMAL, "\nOptions in flasher mode:");
         PrintAndLogEx(NORMAL, "      --flash                             flash Proxmark3, requires at least one --image");
-        PrintAndLogEx(NORMAL, "      --unlock-bootloader                 Enable flashing of bootloader area *DANGEROUS* (need --flash or --flash-info)");
+        PrintAndLogEx(NORMAL, "      --unlock-bootloader                 Enable flashing of bootloader area *DANGEROUS* (need --flash)");
+        PrintAndLogEx(NORMAL, "      --force                             Enable flashing even if firmware seems to not match client version");
         PrintAndLogEx(NORMAL, "      --image <imagefile>                 image to flash. Can be specified several times.");
         PrintAndLogEx(NORMAL, "\nExamples:");
         PrintAndLogEx(NORMAL, "\n  to run Proxmark3 client:\n");
@@ -664,12 +603,11 @@ static void show_help(bool showFullHelp, char *exec_name) {
     }
 }
 
-static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[FLASH_MAX_FILES], bool can_write_bl) {
+static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[FLASH_MAX_FILES], bool can_write_bl, bool force) {
 
     int ret = PM3_EUNDEF;
     flash_file_t files[FLASH_MAX_FILES];
     memset(files, 0, sizeof(files));
-    char *filepaths[FLASH_MAX_FILES] = {0};
 
     if (serial_port_name == NULL) {
         PrintAndLogEx(ERR, "You must specify a port.\n");
@@ -689,12 +627,20 @@ static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[
         if (ret != PM3_SUCCESS) {
             goto finish2;
         }
-        filepaths[i] = path;
+        files[i].filename = path;
     }
 
     PrintAndLogEx(SUCCESS, "About to use the following file%s:", num_files > 1 ? "s" : "");
     for (int i = 0 ; i < num_files; ++i) {
-        PrintAndLogEx(SUCCESS, "   "_YELLOW_("%s"), filepaths[i]);
+        PrintAndLogEx(SUCCESS, "   "_YELLOW_("%s"), files[i].filename);
+    }
+
+    for (int i = 0 ; i < num_files; ++i) {
+        ret = flash_load(&files[i], force);
+        if (ret != PM3_SUCCESS) {
+            goto finish2;
+        }
+        PrintAndLogEx(NORMAL, "");
     }
 
     if (OpenProxmark(&g_session.current_device, serial_port_name, true, 60, true, FLASHMODE_SPEED)) {
@@ -715,7 +661,7 @@ static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[
         goto finish;
 
     for (int i = 0 ; i < num_files; ++i) {
-        ret = flash_load(&files[i], filepaths[i], can_write_bl, max_allowed * ONE_KB);
+        ret = flash_prepare(&files[i], can_write_bl, max_allowed * ONE_KB);
         if (ret != PM3_SUCCESS) {
             goto finish;
         }
@@ -729,22 +675,22 @@ static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[
         if (ret != PM3_SUCCESS) {
             goto finish;
         }
-        flash_free(&files[i]);
         PrintAndLogEx(NORMAL, "");
     }
 
 finish:
     if (ret != PM3_SUCCESS)
-        PrintAndLogEx(INFO, "The flashing procedure failed, follow the suggested steps!");
+        PrintAndLogEx(WARNING, "The flashing procedure failed, follow the suggested steps!");
     ret = flash_stop_flashing();
     CloseProxmark(g_session.current_device);
 finish2:
     for (int i = 0 ; i < num_files; ++i) {
-        if (filepaths[i] != NULL)
-            free(filepaths[i]);
+        flash_free(&files[i]);
     }
     if (ret == PM3_SUCCESS)
         PrintAndLogEx(SUCCESS, _CYAN_("All done"));
+    else if (ret == PM3_EOPABORTED)
+        PrintAndLogEx(FAILED, "Aborted by user");
     else
         PrintAndLogEx(ERR, "Aborted on error");
     PrintAndLogEx(INFO, "\nHave a nice day!");
@@ -780,23 +726,14 @@ int main(int argc, char *argv[]) {
     char *port = NULL;
     uint32_t speed = 0;
 
-#ifdef HAVE_READLINE
-    /* initialize history */
-    using_history();
-
-    rl_readline_name = "PM3";
-    rl_attempted_completion_function = rl_command_completion;
-
-#ifdef RL_STATE_READCMD
-    rl_extend_line_buffer(1024);
-#endif // RL_STATE_READCMD
-#endif // HAVE_READLINE
+    pm3line_init();
 
     char exec_name[100] = {0};
     strncpy(exec_name, basename(argv[0]), sizeof(exec_name) - 1);
 
     bool flash_mode = false;
     bool flash_can_write_bl = false;
+    bool flash_force = false;
     bool debug_mode_forced = false;
     int flash_num_files = 0;
     char *flash_filenames[FLASH_MAX_FILES];
@@ -1013,6 +950,12 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        // force flash even if firmware seems to not match client version
+        if (strcmp(argv[i], "--force") == 0) {
+            flash_force = true;
+            continue;
+        }
+
         // flash file
         if (strcmp(argv[i], "--image") == 0) {
             if (flash_num_files == FLASH_MAX_FILES) {
@@ -1054,7 +997,7 @@ int main(int argc, char *argv[]) {
         speed = USART_BAUD_RATE;
 
     if (flash_mode) {
-        flash_pm3(port, flash_num_files, flash_filenames, flash_can_write_bl);
+        flash_pm3(port, flash_num_files, flash_filenames, flash_can_write_bl, flash_force);
         exit(EXIT_SUCCESS);
     }
 
@@ -1151,6 +1094,6 @@ int main(int argc, char *argv[]) {
 
     if (g_session.window_changed) // Plot/Overlay moved or resized
         preferences_save();
-    exit(EXIT_SUCCESS);
+    return mainret;
 }
 #endif //LIBPM3

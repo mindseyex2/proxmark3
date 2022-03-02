@@ -13,6 +13,7 @@
     - [if you got an error](#if-you-got-an-error)
   - [Install](#install)
   - [Flash the BOOTROM & FULLIMAGE](#flash-the-bootrom--fullimage)
+  - [flasher stops and warns you about firmware image](#flasher-stops-and-warns-you-about-firmware-image)
   - [Run the client](#run-the-client)
   - [Next steps](#next-steps)
 
@@ -24,7 +25,7 @@
 The client and the Proxmark3 firmware should always be in sync.
 Nevertheless, the firmware can be tuned depending on the Proxmark3 platform and options.
 
-Indeed, the RRG/Iceman fork can be used on other Proxmark3 hardware platforms as well.
+Indeed, the Iceman fork can be used on other Proxmark3 hardware platforms as well.
 
 Via some definitions, you can adjust the firmware for a given platform, but also to add features like the support of the Blue Shark add-on or to select which standalone mode to embed. To learn how to adjust the firmware, please read [Advanced compilation parameters](/doc/md/Use_of_Proxmark/4_Advanced-compilation-parameters.md).
 
@@ -104,6 +105,30 @@ or
 ```sh
 proxmark3 /dev/ttyACM0 --flash --unlock-bootloader --image /tmp/my-bootrom.elf --image /tmp/my-fullimage.elf
 ```
+
+If the flasher can't detect your Proxmark3 (especially the very first time you flash a new device), force it to enter the bootloader mode as following:  
+With your Proxmark3 unplugged from your machine, press and hold the button on your Proxmark3 as you plug it into a USB port. You can release the button, two of the four LEDs should stay on. You're in bootloader mode, ready for the next step. In case the two LEDs don't stay on when you're releasing the button, you've a very old bootloader, start over and keep the button pressed during the whole flashing procedure.
+
+
+## flasher stops and warns you about firmware image
+^[Top](#top)
+
+The Proxmark3 software and firmware is connected tightly. The strong recommendation is to use the client with a Proxmark3 device flashed with firmware images from same source version.  
+In the flash process you might get this message because the firmware images is downloaded or distributed and you have compiled your own client from a different source version.  
+To minimize the risks the flasher warns about it and stops.
+
+```
+    Make sure to flash a correct and up-to-date version
+    You can force flashing this firmware by using the option '--force'
+```
+
+If you know what you are doing and want to proceed despite the mismatch, you need to add the `--force` param in order to continue flashing.
+
+```sh
+pm3-flash-all --force
+```
+
+
 
 ## Run the client
 ^[Top](#top)

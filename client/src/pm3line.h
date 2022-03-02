@@ -1,7 +1,4 @@
 //-----------------------------------------------------------------------------
-// Borrowed initially from
-// https://web.archive.org/web/20070920142755/http://www.simonshepherd.supanet.com:80/source.htm#ansi
-// Copyright (C) Simon Shepherd 2003
 // Copyright (C) Proxmark3 contributors. See AUTHORS.md for details.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,15 +13,20 @@
 //
 // See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
-// Generic TEA crypto code.
+// API to abstract Readline / Linenoise support
 //-----------------------------------------------------------------------------
 
-#ifndef __TEA_H
-#define __TEA_H
+#ifndef PM3LINE_H__
+#define PM3LINE_H__
 
-#include "common.h"
+void pm3line_init(void);
+void pm3line_install_signals(void);
+char *pm3line_read(const char *s);
+void pm3line_free(void *ref);
+void pm3line_update_prompt(const char *prompt);
+int pm3line_load_history(const char *path);
+void pm3line_add_history(const char *line);
+void pm3line_flush_history(void);
+void pm3line_check(int (check)(void));
 
-void tea_encrypt(uint8_t *v, uint8_t *key);
-void tea_decrypt(uint8_t *v, uint8_t *key);
-
-#endif /* __TEA_H */
+#endif // PM3LINE_H__

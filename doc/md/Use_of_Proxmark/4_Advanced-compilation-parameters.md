@@ -18,7 +18,7 @@
 The client and the Proxmark3 firmware should always be in sync.
 Nevertheless, the firmware can be tuned depending on the Proxmark3 platform and options.
 
-Indeed, the RRG/Iceman fork can be used on other Proxmark3 hardware platforms as well.
+Indeed, the Iceman fork can be used on other Proxmark3 hardware platforms as well.
 
 Via some definitions, you can adjust the firmware for a given platform, but also to add features like the support of the Blue Shark add-on or to select which standalone mode to embed.
 
@@ -94,7 +94,7 @@ If you have installed a Blue Shark add-on on your RDV4, define `PLATFORM_EXTRAS=
 ## STANDALONE
 ^[Top](#top)
 
-The RRG/Iceman repository gives you to easily choose which standalone mode to embed in the firmware.
+The Iceman repository gives you to easily choose which standalone mode to embed in the firmware.
 
 Here are the supported values you can assign to `STANDALONE` in `Makefile.platform`:
 
@@ -103,6 +103,7 @@ Here are the supported values you can assign to `STANDALONE` in `Makefile.platfo
 |                 | No standalone mode
 | LF_EM4100EMUL   | LF EM4100 simulator standalone mode - temskiy
 | LF_EM4100RSWB   | LF EM4100 read/write/clone/brute mode - Monster1024
+| LF_EM4100RSWW   | LF EM4100 read/write/clone/validate/wipe mode - Łukasz "zabszk" Jurczyk
 | LF_EM4100RWC    | LF EM4100 read/write/clone mode - temskiy
 | LF_HIDBRUTE     | HID corporate 1000 bruteforce - Federico dotta & Maurizio Agazzini
 | LF_HIDFCBRUTE   | LF HID facility code bruteforce - ss23
@@ -119,7 +120,8 @@ Here are the supported values you can assign to `STANDALONE` in `Makefile.platfo
 | HF_CRAFTBYTE    | UID stealer - Emulates scanned 14a UID - Anze Jensterle
 | HF_COLIN        | Mifare ultra fast sniff/sim/clone - Colin Brigato
 | HF_ICECLASS     | iCLASS 4-1 mode  sim/read & dump/loclass/glitch & config to flashmem - Iceman1001
-| HF_LEGIC        | HF Legic Prime standalone - uhei
+| HF_LEGIC        | HF Legic Prime Read/Store/Sim standalone - uhei
+| HF_LEGICSIM     | HF Legic Prime Simulate standalone - uhei
 | HF_MATTYRUN     | Mifare sniff/clone - Matías A. Ré Medina
 | HF_MFCSIM       | Simulate Mifare Classic 1k card storing in flashmem - Ray Lee
 | HF_MSDSAL       | EMV Read and emulation - Salvador Mendoza

@@ -280,8 +280,8 @@ void print_blocks(uint32_t *data, size_t len) {
     if (!data) {
         PrintAndLogEx(ERR, "..empty data");
     } else {
-        for (uint8_t i = 0; i < len; i++)
-            PrintAndLogEx(SUCCESS, " %02d | %08X", i, data[i]);
+        for (size_t i = 0; i < len; i++)
+            PrintAndLogEx(SUCCESS, " %02zd | %08X", i, data[i]);
     }
 }
 
@@ -978,7 +978,6 @@ int num_CPUs(void) {
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
 #else
-#include <unistd.h>
     int count = sysconf(_SC_NPROCESSORS_ONLN);
     if (count <= 0)
         count = 1;

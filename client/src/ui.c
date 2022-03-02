@@ -28,7 +28,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#ifdef HAVE_READLINE
+#if defined(HAVE_READLINE)
 //Load readline after stdio.h
 #include <readline/readline.h>
 #endif
@@ -426,7 +426,7 @@ void memcpy_filter_rlmarkers(void *dest, const void *src, size_t n) {
     uint8_t *rdest = (uint8_t *)dest;
     uint8_t *rsrc = (uint8_t *)src;
     uint16_t si = 0;
-    for (uint16_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if ((rsrc[i] == '\001') || (rsrc[i] == '\002'))
             // skip readline special markers
             continue;
@@ -440,7 +440,7 @@ void memcpy_filter_ansi(void *dest, const void *src, size_t n, bool filter) {
         uint8_t *rdest = (uint8_t *)dest;
         uint8_t *rsrc = (uint8_t *)src;
         uint16_t si = 0;
-        for (uint16_t i = 0; i < n; i++) {
+        for (size_t i = 0; i < n; i++) {
             if ((i < n - 1)
                     && (rsrc[i] == '\x1b')
                     && (rsrc[i + 1] >= 0x40)
@@ -531,7 +531,7 @@ void memcpy_filter_emoji(void *dest, const void *src, size_t n, emojiMode_t mode
         char *rdest = (char *)dest;
         char *rsrc = (char *)src;
         uint16_t si = 0;
-        for (uint16_t i = 0; i < n; i++) {
+        for (size_t i = 0; i < n; i++) {
             current_char = rsrc[i];
 
             if (current_token_length == 0) {
@@ -643,7 +643,7 @@ void iceSimple_Filter(int *data, const size_t len, uint8_t k) {
 
 void print_progress(size_t count, uint64_t max, barMode_t style) {
     int cols = 100 + 35;
-#ifdef HAVE_READLINE
+#if defined(HAVE_READLINE)
     static int prev_cols = 0;
     int rows;
     rl_reset_screen_size(); // refresh Readline idea of the actual screen width

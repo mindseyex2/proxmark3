@@ -282,7 +282,7 @@ static int CmdQuit(const char *Cmd) {
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
     CLIParserFree(ctx);
-    return PM3_EFATAL;
+    return PM3_SQUIT;
 }
 
 static int CmdRev(const char *Cmd) {
@@ -351,7 +351,7 @@ static int CmdHelp(const char *Cmd) {
 // Entry point into our code: called whenever the user types a command and
 // then presses Enter, which the full command line that they typed.
 //-----------------------------------------------------------------------------
-int CommandReceived(char *Cmd) {
+int CommandReceived(const char *Cmd) {
     return CmdsParse(CommandTable, Cmd);
 }
 

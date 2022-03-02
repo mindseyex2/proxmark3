@@ -519,6 +519,7 @@ typedef struct {
 #define CMD_HF_ISO15693_FINDAFI                                           0x0315
 #define CMD_HF_ISO15693_CSETUID                                           0x0316
 #define CMD_HF_ISO15693_SLIX_L_DISABLE_PRIVACY                            0x0317
+#define CMD_HF_ISO15693_SLIX_L_DISABLE_AESAFI                             0x0318
 
 #define CMD_LF_SNIFF_RAW_ADC                                              0x0360
 
@@ -706,6 +707,8 @@ typedef struct {
 
 // Error codes                          Usages:
 
+// Success, regular quit
+#define PM3_SQUIT               2
 // Success, transfer nonces            pm3:        Sending nonces back to client
 #define PM3_SNONCES             1
 // Success (no error)

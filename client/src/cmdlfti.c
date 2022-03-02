@@ -98,6 +98,9 @@ int demodTI(bool verbose) {
     int lowTot = 0, highTot = 0;
     int retval = PM3_ESOFT;
 
+    if (g_GraphTraceLen < convLen) {
+        return retval;
+    }
     for (i = 0; i < g_GraphTraceLen - convLen; i++) {
         lowSum = 0;
         highSum = 0;
@@ -261,7 +264,7 @@ int demodTI(bool verbose) {
         init_table(CRC_KERMIT);
         uint16_t calccrc = crc16_kermit(raw, sizeof(raw));
         const char *crc_str = (calccrc == (shift2 & 0xFFFF)) ? _GREEN_("ok") : _RED_("fail");
-        PrintAndLogEx(INFO, "Tag data = %08X%08X  [%04X] (%s)", shift1, shift0, calccrc, crc_str);
+        PrintAndLogEx(INFO, "Tag data = %08X%08X  [%04X] ( %s )", shift1, shift0, calccrc, crc_str);
 
         if (calccrc != (shift2 & 0xFFFF))
             PrintAndLogEx(WARNING, "Warning: CRC mismatch, calculated %04X, got %04X", calccrc, shift2 & 0xFFFF);

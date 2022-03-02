@@ -78,6 +78,14 @@ JANSSONLIBINC = -I$(JANSSONLIBPATH)
 JANSSONLIB = $(JANSSONLIBPATH)/libjansson.a
 JANSSONLIBLD =
 
+## Linenoise
+# Can be used if Readline is unavailable or explicitely disabled
+# Requires to be unpacked, see deps/get_linenoise.sh
+LINENOISELIBPATH = ./deps/linenoise
+LINENOISELIBINC = -I$(LINENOISELIBPATH)
+LINENOISELIB = $(LINENOISELIBPATH)/liblinenoise.a
+LINENOISELIBLD =
+
 ## Lua
 LUALIBPATH = ./deps/liblua
 LUALIBINC = -I$(LUALIBPATH)
@@ -145,6 +153,9 @@ PM3INCLUDES += $(CLIPARSERLIBINC)
 STATICLIBS += $(HARDNESTEDLIB)
 LDLIBS +=$(HARDNESTEDLIBLD)
 PM3INCLUDES += $(HARDNESTEDLIBINC)
+
+## Linenoise
+# wait to see if Readline is available
 
 ## Lua
 ifneq ($(SKIPLUASYSTEM),1)
@@ -325,6 +336,16 @@ ifneq ($(SKIPREADLINE),1)
 
     LDLIBS += -lreadline
     READLINE_FOUND = 1
+else
+## Linenoise
+    ifneq ($(SKIPLINENOISE),1)
+        ifneq (,$(wildcard $(LINENOISELIBPATH)))
+            STATICLIBS += $(LINENOISELIB)
+            LDLIBS += $(LINENOISELIBLD)
+            PM3INCLUDES += $(LINENOISELIBINC)
+            LINENOISE_LOCAL_FOUND = 1
+		endif
+    endif
 endif
 
 ########
@@ -360,6 +381,10 @@ endif
 
 ifeq ($(READLINE_FOUND),1)
     PM3CFLAGS += -DHAVE_READLINE
+endif
+
+ifeq ($(LINENOISE_LOCAL_FOUND),1)
+    PM3CFLAGS += -DHAVE_LINENOISE
 endif
 
 ifeq ($(BT_FOUND),1)
@@ -463,6 +488,18 @@ else
         $(info Readline library:  enabled)
     else
         $(info Readline library:  Readline not found, disabled)
+    endif
+endif
+
+ifneq ($(READLINE_FOUND),1)
+    ifeq ($(SKIPLINENOISE),1)
+        $(info Linenoise library: skipped)
+    else
+        ifeq ($(LINENOISE_LOCAL_FOUND),1)
+            $(info Linenoise library: enabled)
+        else
+            $(info Linenoise library: Linenoise not found, disabled)
+        endif
     endif
 endif
 
@@ -634,13 +671,12 @@ SRCS =  mifare/aiddesfire.c \
 		pm3_binlib.c \
 		pm3_bitlib.c \
 		preferences.c \
-		prng.c \
+		pm3line.c \
 		proxmark3.c \
 		scandir.c \
 		uart/uart_posix.c \
 		uart/uart_win32.c \
 		scripting.c \
-		tea.c \
 		ui.c \
 		util.c \
 		version_pm3.c \
@@ -738,6 +774,9 @@ clean:
 	$(Q)$(MAKE) --no-print-directory -C $(CLIPARSERLIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(HARDNESTEDLIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(JANSSONLIBPATH) clean
+ifeq ($(LINENOISE_LOCAL_FOUND), 1)
+	$(Q)$(MAKE) --no-print-directory -C $(LINENOISELIBPATH) clean
+endif
 	$(Q)$(MAKE) --no-print-directory -C $(LUALIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(REVENGLIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(TINYCBORLIBPATH) clean
@@ -793,6 +832,12 @@ ifneq ($(JANSSON_FOUND),1)
 	$(Q)$(MAKE) --no-print-directory -C $(JANSSONLIBPATH) all
 endif
 
+$(LINENOISELIB): .FORCE
+ifeq ($(LINENOISE_LOCAL_FOUND), 1)
+	$(info [*] MAKE $@)
+	$(Q)$(MAKE) --no-print-directory -C $(LINENOISELIBPATH) all
+endif
+
 $(LUALIB): .FORCE
 ifneq ($(LUA_FOUND),1)
 	$(info [*] MAKE $@ for $(LUAPLATFORM))
@@ -836,9 +881,9 @@ src/pm3_pywrap.c: pm3.i
 .PHONY: all clean install uninstall tarbin .FORCE
 
 # version_pm3.c should be remade on every compilation
-src/version_pm3.c: default_version_pm3.c
+src/version_pm3.c: .FORCE default_version_pm3.c
 	$(info [=] GEN $@)
-	$(Q)$(SH) ../tools/mkversion.sh > $@ || $(PERL) ../tools/mkversion.pl > $@ || $(CP) $< $@
+	$(Q)$(SH) ../tools/mkversion.sh > $@ || $(CP) $< $@
 
 # easy printing of MAKE VARIABLES
 print-%: ; @echo $* = $($*)

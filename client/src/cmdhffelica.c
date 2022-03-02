@@ -1702,14 +1702,11 @@ static int CmdHFFelicaRequestService(const char *Cmd) {
 
     uint8_t datalen = 13; // length (1) + CMD (1) + IDm(8) + Node Number (1) + Node Code List (2)
 
-    uint8_t flags = FELICA_APPEND_CRC;
+    uint8_t flags = (FELICA_APPEND_CRC | FELICA_RAW);
     if (custom_IDm) {
         flags |= FELICA_NO_SELECT;
     }
 
-    if (datalen > 0) {
-        flags |= FELICA_RAW;
-    }
     // Todo activate once datalen isn't hardcoded anymore...
     if (custom_IDm == false && check_last_idm(data, datalen) == false) {
         return PM3_EINVARG;
@@ -1777,13 +1774,11 @@ static int CmdHFFelicaSniff(const char *Cmd) {
     if (payload.samples > 9999) {
         payload.samples = 9999;
         PrintAndLogEx(INFO, "Too large samples to skip value, using max value 9999");
-        return PM3_EINVARG;
     }
 
     if (payload.triggers  > 9999) {
         payload.triggers  = 9999;
         PrintAndLogEx(INFO, "Too large trigger to skip value, using max value 9999");
-        return PM3_EINVARG;
     }
 
 
@@ -2074,7 +2069,7 @@ static int CmdHFFelicaDumpLite(const char *Cmd) {
         return PM3_EOPABORTED;
     }
 
-    uint32_t tracelen = resp.oldarg[1];
+    uint16_t tracelen = resp.oldarg[1];
     if (tracelen == 0) {
         PrintAndLogEx(WARNING, "No trace data! Maybe not a FeliCa Lite card?");
         return PM3_ESOFT;

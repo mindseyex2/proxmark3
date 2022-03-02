@@ -126,15 +126,13 @@ uint64_t x_bytes_to_num(uint8_t *src, size_t len) {
 }
 
 void reverse_arraybytes(uint8_t *arr, size_t len) {
-    uint8_t i;
-    for (i = 0; i < len ; i++) {
+    for (size_t i = 0; i < len ; i++) {
         arr[i] = reflect8(arr[i]);
     }
 }
 
 void reverse_arraycopy(uint8_t *arr, uint8_t *dest, size_t len) {
-    uint8_t i;
-    for (i = 0; i < len ; i++) {
+    for (size_t i = 0; i < len ; i++) {
         dest[i] = reflect8(arr[i]);
     }
 }
@@ -147,9 +145,11 @@ void printarr(const char *name, uint8_t *arr, int len) {
     char *output = calloc(outsize, sizeof(char));
     cx = snprintf(output, outsize, "uint8_t %s[] = {", name);
     for (i = 0; i < len; i++) {
-        cx += snprintf(output + cx, outsize - cx, "0x%02x,", *(arr + i)); //5 bytes per byte
+        if (cx < outsize)
+            cx += snprintf(output + cx, outsize - cx, "0x%02x,", *(arr + i)); //5 bytes per byte
     }
-    snprintf(output + cx, outsize - cx, "};");
+    if (cx < outsize)
+        snprintf(output + cx, outsize - cx, "};");
     PrintAndLogEx(INFO, output);
     free(output);
 }
@@ -165,12 +165,16 @@ void printarr_human_readable(const char *title, uint8_t *arr, int len) {
     for (i = 0;  i < len; i++) {
         if (i % 16 == 0) {
 
-            if (i == 0)
-                cx += snprintf(output + cx, outsize - cx, "%02x| ", i);
-            else
-                cx += snprintf(output + cx, outsize - cx, "\n%02x| ", i);
+            if (i == 0) {
+                if (cx < outsize)
+                    cx += snprintf(output + cx, outsize - cx, "%02x| ", i);
+            } else {
+                if (cx < outsize)
+                    cx += snprintf(output + cx, outsize - cx, "\n%02x| ", i);
+            }
         }
-        cx += snprintf(output + cx, outsize - cx, "%02x ", *(arr + i));
+        if (cx < outsize)
+            cx += snprintf(output + cx, outsize - cx, "%02x ", *(arr + i));
     }
     PrintAndLogEx(INFO, output);
     free(output);

@@ -137,12 +137,12 @@ int demodIOProx(bool verbose) {
     calccrc &= 0xff;
     calccrc = 0xff - calccrc;
 
-    char crc_str[36] = {0};
+    char crc_str[40] = {0};
 
     if (crc == calccrc) {
-        snprintf(crc_str, sizeof(crc_str), "(" _GREEN_("ok") ")");
+        snprintf(crc_str, sizeof(crc_str), "( " _GREEN_("ok") " )");
     } else {
-        snprintf(crc_str, sizeof(crc_str), "(" _RED_("fail") ") 0x%02X != 0x%02X", crc, calccrc);
+        snprintf(crc_str, sizeof(crc_str), "( " _RED_("fail") " ) 0x%02X != 0x%02X", crc, calccrc);
         retval = PM3_ESOFT;
     }
 

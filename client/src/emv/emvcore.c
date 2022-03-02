@@ -137,6 +137,7 @@ static const AIDList_t AIDlist [] = {
     { CV_OTHER, "D5280050218002" },              // The Netherlands - ? - (Netherlands)
     { CV_OTHER, "D5780000021010" },              // Bankaxept    Norway  Bankaxept   Norwegian domestic debit card
     { CV_OTHER, "F0000000030001" },              // BRADESCO - Brazilian Bank Banco Bradesco
+    { CV_OTHER, "A0000008381010" },              // SL Resekort - Swedish domestic transportation card with payment
 };
 
 enum CardPSVendor GetCardPSVendor(uint8_t *AID, size_t AIDlen) {
@@ -496,7 +497,7 @@ int EMVSearch(Iso7816CommandChannel channel, bool ActivateField, bool LeaveField
             } else {
                 // (1) - card select error, (4) reply timeout, (200) - result length = 0
                 if (res == 1 || res == 4 || res == 200) {
-                    if (!LeaveFieldON)
+                    if (LeaveFieldON == false)
                         DropFieldEx(channel);
 
                     PrintAndLogEx(WARNING, "exiting...");
@@ -522,8 +523,9 @@ int EMVSearch(Iso7816CommandChannel channel, bool ActivateField, bool LeaveField
         }
     }
 
-    if (!LeaveFieldON)
+    if (LeaveFieldON == false) {
         DropFieldEx(channel);
+    }
 
     return 0;
 }
@@ -650,7 +652,7 @@ int trSDA(struct tlvdb *tlv) {
     struct tlvdb *dac_db = emv_pki_recover_dac(issuer_pk, tlv, sda_tlv);
     if (dac_db) {
         const struct tlv *dac_tlv = tlvdb_get(dac_db, 0x9f45, NULL);
-        PrintAndLogEx(INFO, "SDA verified (%s) (Data Authentication Code: %02hhx:%02hhx)", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
+        PrintAndLogEx(INFO, "SDA verified ( %s ) (Data Authentication Code: %02hhx:%02hhx)", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
         tlvdb_add(tlv, dac_db);
     } else {
         emv_pk_free(issuer_pk);
@@ -769,7 +771,7 @@ int trDDA(Iso7816CommandChannel channel, bool decodeTLV, struct tlvdb *tlv) {
         struct tlvdb *dac_db = emv_pki_recover_dac(issuer_pk, tlv, sda_tlv);
         if (dac_db) {
             const struct tlv *dac_tlv = tlvdb_get(dac_db, 0x9f45, NULL);
-            PrintAndLogEx(INFO, "SDAD verified (%s) (Data Authentication Code: %02hhx:%02hhx)\n", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
+            PrintAndLogEx(INFO, "SDAD verified ( %s ) (Data Authentication Code: %02hhx:%02hhx)\n", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
             tlvdb_add(tlv, dac_db);
         } else {
             PrintAndLogEx(ERR, "Error: SSAD verify error");
@@ -928,7 +930,7 @@ int trCDA(struct tlvdb *tlv, struct tlvdb *ac_tlv, struct tlv *pdol_data_tlv, st
         struct tlvdb *dac_db = emv_pki_recover_dac(issuer_pk, tlv, sda_tlv);
         if (dac_db) {
             const struct tlv *dac_tlv = tlvdb_get(dac_db, 0x9f45, NULL);
-            PrintAndLogEx(SUCCESS, "Signed Static Application Data (SSAD) verified (%s) (%02hhx:%02hhx)", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
+            PrintAndLogEx(SUCCESS, "Signed Static Application Data (SSAD) verified ( %s ) (%02hhx:%02hhx)", _GREEN_("ok"), dac_tlv->value[0], dac_tlv->value[1]);
             tlvdb_add(tlv, dac_db);
         } else {
             PrintAndLogEx(ERR, "Error: Signed Static Application Data (SSAD) verify error");
@@ -948,7 +950,7 @@ int trCDA(struct tlvdb *tlv, struct tlvdb *ac_tlv, struct tlv *pdol_data_tlv, st
     if (idn_db) {
         const struct tlv *idn_tlv = tlvdb_get(idn_db, 0x9f4c, NULL);
         PrintAndLogEx(INFO, "IDN (ICC Dynamic Number) [%zu] %s", idn_tlv->len, sprint_hex_inrow(idn_tlv->value, idn_tlv->len));
-        PrintAndLogEx(SUCCESS, "CDA verified (%s)", _GREEN_("ok"));
+        PrintAndLogEx(SUCCESS, "CDA verified ( %s )", _GREEN_("ok"));
         tlvdb_add(tlv, idn_db);
     } else {
         PrintAndLogEx(ERR, "ERROR: CDA verify error");

@@ -1007,7 +1007,7 @@ bool prepare_allocated_tag_modulation(tag_response_info_t *response_info, uint8_
     }
 }
 
-bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_response_info_t **responses, uint32_t *cuid, uint32_t counters[3], uint8_t tearings[3], uint8_t *pages) {
+bool SimulateIso14443aInit(uint8_t tagType, uint16_t flags, uint8_t *data, tag_response_info_t **responses, uint32_t *cuid, uint32_t counters[3], uint8_t tearings[3], uint8_t *pages) {
     uint8_t sak = 0;
     // The first response contains the ATQA (note: bytes are transmitted in reverse order).
     static uint8_t rATQA[2] = { 0x00 };
@@ -1049,7 +1049,7 @@ bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_response_i
         }
         break;
         case 3: { // MIFARE DESFire
-            rATQA[0] = 0x04;
+            rATQA[0] = 0x44;
             rATQA[1] = 0x03;
             sak = 0x20;
             memcpy(rRATS, "\x06\x75\x77\x81\x02\x80\x00\x00", 8);
@@ -1128,7 +1128,7 @@ bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_response_i
     }
 
     // if uid not supplied then get from emulator memory
-    if (data[0] == 0 || (flags & FLAG_UID_IN_EMUL) == FLAG_UID_IN_EMUL) {
+    if ((memcmp(data, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 10) == 0) || ((flags & FLAG_UID_IN_EMUL) == FLAG_UID_IN_EMUL)) {
         if (tagType == 2 || tagType == 7) {
             uint16_t start = MFU_DUMP_PREFIX_LENGTH;
             uint8_t emdata[8];
@@ -1178,6 +1178,7 @@ bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_response_i
 
         *cuid = bytes_to_num(data + 3, 4);
     } else if ((flags & FLAG_10B_UID_IN_DATA) == FLAG_10B_UID_IN_DATA) {
+
         rUIDc1[0] = 0x88;  // Cascade Tag marker
         rUIDc1[1] = data[0];
         rUIDc1[2] = data[1];
@@ -1265,7 +1266,7 @@ bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_response_i
 // response to send, and send it.
 // 'hf 14a sim'
 //-----------------------------------------------------------------------------
-void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t exitAfterNReads) {
+void SimulateIso14443aTag(uint8_t tagType, uint16_t flags, uint8_t *data, uint8_t exitAfterNReads) {
 
 #define ATTACK_KEY_COUNT 8 // keep same as define in cmdhfmf.c -> readerAttack()
 
@@ -1609,6 +1610,8 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
             order = ORDER_HALTED;
         } else if (receivedCmd[0] == MIFARE_ULEV1_VERSION && len == 3 && (tagType == 2 || tagType == 7)) {
             p_response = &responses[RESP_INDEX_VERSION];
+        } else if (receivedCmd[0] == MFDES_GET_VERSION && len == 4 && (tagType == 3)) {
+            p_response = &responses[RESP_INDEX_VERSION];
         } else if ((receivedCmd[0] == MIFARE_AUTH_KEYA || receivedCmd[0] == MIFARE_AUTH_KEYB) && len == 4 && tagType != 2 && tagType != 7) {    // Received an authentication request
             cardAUTHKEY = receivedCmd[0] - 0x60;
             cardAUTHSC = receivedCmd[1] / 4; // received block num
@@ -1815,7 +1818,7 @@ static void PrepareDelayedTransfer(uint16_t delay) {
 
     ts->buf[ts->max++] = 0x00;
 
-    for (uint16_t i = 0; i < ts->max; i++) {
+    for (uint32_t i = 0; i < ts->max; i++) {
         uint8_t bits_to_shift = ts->buf[i] & bitmask;
         ts->buf[i] = ts->buf[i] >> delay;
         ts->buf[i] = ts->buf[i] | (bits_shifted << (8 - delay));
@@ -2318,16 +2321,16 @@ void ReaderTransmit(uint8_t *frame, uint16_t len, uint32_t *timing) {
     ReaderTransmitBitsPar(frame, len * 8, par, timing);
 }
 
-static int ReaderReceiveOffset(uint8_t *receivedAnswer, uint16_t offset, uint8_t *par) {
+static uint16_t ReaderReceiveOffset(uint8_t *receivedAnswer, uint16_t offset, uint8_t *par) {
     if (!GetIso14443aAnswerFromTag(receivedAnswer, par, offset))
-        return false;
+        return 0;
     LogTrace(receivedAnswer, Demod.len, Demod.startTime * 16 - DELAY_AIR2ARM_AS_READER, Demod.endTime * 16 - DELAY_AIR2ARM_AS_READER, par, false);
     return Demod.len;
 }
 
-int ReaderReceive(uint8_t *receivedAnswer, uint8_t *par) {
+uint16_t ReaderReceive(uint8_t *receivedAnswer, uint8_t *par) {
     if (!GetIso14443aAnswerFromTag(receivedAnswer, par, 0))
-        return false;
+        return 0;
     LogTrace(receivedAnswer, Demod.len, Demod.startTime * 16 - DELAY_AIR2ARM_AS_READER, Demod.endTime * 16 - DELAY_AIR2ARM_AS_READER, par, false);
     return Demod.len;
 }
@@ -2575,7 +2578,7 @@ int iso14443a_select_cardEx(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint
                 }
 
                 // finally, add the last bits and BCC of the UID
-                for (uint16_t i = collision_answer_offset; i < Demod.len * 8; i++, uid_resp_bits++) {
+                for (uint32_t i = collision_answer_offset; i < Demod.len * 8; i++, uid_resp_bits++) {
                     uint16_t UIDbit = (resp[i / 8] >> (i % 8)) & 0x01;
                     uid_resp[uid_resp_bits / 8] |= UIDbit << (uid_resp_bits % 8);
                 }
@@ -2969,7 +2972,7 @@ void ReaderIso14443a(PacketCommandNG *c) {
             }
         } else {                    // want to send complete bytes only
             if ((param & ISO14A_TOPAZMODE)) {
-                uint16_t i = 0;
+                size_t i = 0;
                 ReaderTransmitBitsPar(&cmd[i++], 7, NULL, NULL);                        // first byte: 7 bits, no paritiy
                 while (i < len) {
                     ReaderTransmitBitsPar(&cmd[i++], 8, NULL, NULL);                    // following bytes: 8 bits, no paritiy

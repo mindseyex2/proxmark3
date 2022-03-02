@@ -74,7 +74,6 @@ Check column "offline" for their availability.
 |`analyse crc            `|Y       |`Stub method for CRC evaluations`
 |`analyse chksum         `|Y       |`Checksum with adding, masking and one's complement`
 |`analyse dates          `|Y       |`Look for datestamps in a given array of bytes`
-|`analyse tea            `|Y       |`Crypto TEA test`
 |`analyse lfsr           `|Y       |`LFSR tests`
 |`analyse a              `|Y       |`num bits test`
 |`analyse nuid           `|Y       |`create NUID from 7byte UID`
@@ -138,17 +137,17 @@ Check column "offline" for their availability.
 |command                  |offline |description
 |-------                  |------- |-----------
 |`emv help               `|Y       |`This help`
-|`emv exec               `|N       |`Executes EMV contactless transaction.`
-|`emv pse                `|N       |`Execute PPSE. It selects 2PAY.SYS.DDF01 or 1PAY.SYS.DDF01 directory.`
-|`emv search             `|N       |`Try to select all applets from applets list and print installed applets.`
-|`emv select             `|N       |`Select applet.`
-|`emv gpo                `|N       |`Execute GetProcessingOptions.`
-|`emv readrec            `|N       |`Read files from card.`
-|`emv genac              `|N       |`Generate ApplicationCryptogram.`
-|`emv challenge          `|N       |`Generate challenge.`
-|`emv intauth            `|N       |`Internal authentication.`
-|`emv scan               `|N       |`Scan EMV card and save it contents to json file for emulator.`
-|`emv test               `|Y       |`Crypto logic test.`
+|`emv exec               `|N       |`Executes EMV contactless transaction`
+|`emv pse                `|N       |`Execute PPSE. It selects 2PAY.SYS.DDF01 or 1PAY.SYS.DDF01 directory`
+|`emv search             `|N       |`Try to select all applets from applets list and print installed applets`
+|`emv select             `|N       |`Select applet`
+|`emv gpo                `|N       |`Execute GetProcessingOptions`
+|`emv readrec            `|N       |`Read files from card`
+|`emv genac              `|N       |`Generate ApplicationCryptogram`
+|`emv challenge          `|N       |`Generate challenge`
+|`emv intauth            `|N       |`Internal authentication`
+|`emv scan               `|N       |`Scan EMV card and save it contents to json file for emulator`
+|`emv test               `|Y       |`Crypto logic test`
 |`emv list               `|Y       |`List ISO7816 history`
 |`emv roca               `|N       |`Extract public keys and run ROCA test`
 
@@ -244,13 +243,19 @@ Check column "offline" for their availability.
 |-------                  |------- |-----------
 |`hf cipurse help        `|Y       |`This help.`
 |`hf cipurse info        `|N       |`Get info about CIPURSE tag`
+|`hf cipurse select      `|N       |`Select CIPURSE application or file`
 |`hf cipurse auth        `|N       |`Authenticate CIPURSE tag`
 |`hf cipurse read        `|N       |`Read binary file`
 |`hf cipurse write       `|N       |`Write binary file`
 |`hf cipurse aread       `|N       |`Read file attributes`
+|`hf cipurse awrite      `|N       |`Write file attributes`
+|`hf cipurse formatall   `|N       |`Erase all the data from chip`
+|`hf cipurse create      `|N       |`Create file, application, key via DGI record`
 |`hf cipurse delete      `|N       |`Delete file`
+|`hf cipurse updkey      `|N       |`Update key`
+|`hf cipurse updakey     `|N       |`Update key attributes`
 |`hf cipurse default     `|N       |`Set default key and file id for all the other commands`
-|`hf cipurse test        `|Y       |`Tests`
+|`hf cipurse test        `|Y       |`Regression tests`
 
 
 ### hf epa
@@ -368,7 +373,7 @@ Check column "offline" for their availability.
 |`hf iclass info         `|Y       |`Tag information`
 |`hf iclass list         `|Y       |`List iclass history`
 |`hf iclass rdbl         `|N       |`Read Picopass / iCLASS block`
-|`hf iclass reader       `|N       |`Act like an Picopass / iCLASS reader`
+|`hf iclass reader       `|N       |`Act like a Picopass / iCLASS reader`
 |`hf iclass restore      `|N       |`Restore a dump file onto a Picopass / iCLASS tag`
 |`hf iclass sniff        `|N       |`Eavesdrop Picopass / iCLASS communication`
 |`hf iclass wrbl         `|N       |`Write Picopass / iCLASS block`
@@ -396,18 +401,20 @@ Check column "offline" for their availability.
 |command                  |offline |description
 |-------                  |------- |-----------
 |`hf legic help          `|Y       |`This help`
-|`hf legic list          `|Y       |`List LEGIC history`
-|`hf legic reader        `|N       |`LEGIC Prime Reader UID and tag info`
-|`hf legic info          `|N       |`Display deobfuscated and decoded LEGIC Prime tag data`
 |`hf legic dump          `|N       |`Dump LEGIC Prime tag to binary file`
-|`hf legic restore       `|N       |`Restore a dump file onto a LEGIC Prime tag`
+|`hf legic info          `|N       |`Display deobfuscated and decoded LEGIC Prime tag data`
+|`hf legic list          `|Y       |`List LEGIC history`
 |`hf legic rdbl          `|N       |`Read bytes from a LEGIC Prime tag`
-|`hf legic sim           `|N       |`Start tag simulator`
-|`hf legic wrbl          `|N       |`Write data to a LEGIC Prime tag`
-|`hf legic crc           `|Y       |`Calculate Legic CRC over given bytes`
-|`hf legic eload         `|Y       |`Load binary dump to emulator memory`
-|`hf legic esave         `|Y       |`Save emulator memory to binary file`
+|`hf legic reader        `|N       |`LEGIC Prime Reader UID and tag info`
+|`hf legic restore       `|N       |`Restore a dump file onto a LEGIC Prime tag`
 |`hf legic wipe          `|N       |`Wipe a LEGIC Prime tag`
+|`hf legic wrbl          `|N       |`Write data to a LEGIC Prime tag`
+|`hf legic sim           `|N       |`Start tag simulator`
+|`hf legic eload         `|N       |`Load binary dump to emulator memory`
+|`hf legic esave         `|N       |`Save emulator memory to binary file`
+|`hf legic eview         `|N       |`View emulator memory`
+|`hf legic crc           `|Y       |`Calculate Legic CRC over given bytes`
+|`hf legic view          `|Y       |`Display content from tag dump file`
 
 
 ### hf lto
@@ -453,6 +460,7 @@ Check column "offline" for their availability.
 |`hf mf rdsc             `|N       |`Read MIFARE Classic sector`
 |`hf mf restore          `|N       |`Restore MIFARE Classic binary file to BLANK tag`
 |`hf mf setmod           `|N       |`Set MIFARE Classic EV1 load modulation strength`
+|`hf mf value            `|Y       |`Decode a value block`
 |`hf mf view             `|Y       |`Display content from tag dump file`
 |`hf mf wipe             `|N       |`Wipe card to zeros and default keys/acc`
 |`hf mf wrbl             `|N       |`Write MIFARE Classic block`
@@ -516,8 +524,9 @@ Check column "offline" for their availability.
 |`hf mfu ndefread        `|N       |`Prints NDEF records from card`
 |`hf mfu rdbl            `|N       |`Read block`
 |`hf mfu restore         `|N       |`Restore a dump onto a MFU MAGIC tag`
+|`hf mfu view            `|Y       |`Display content from tag dump file`
 |`hf mfu wrbl            `|N       |`Write block`
-|`hf mfu eload           `|N       |`load Ultralight .eml dump file into emulator memory`
+|`hf mfu eload           `|N       |`Load Ultralight .eml dump file into emulator memory`
 |`hf mfu eview           `|N       |`View emulator memory`
 |`hf mfu sim             `|N       |`Simulate MIFARE Ultralight from emulator memory`
 |`hf mfu setpwd          `|N       |`Set 3DES key - Ultralight-C`
@@ -568,7 +577,7 @@ Check column "offline" for their availability.
 |`hf mfdes write         `|N       |`Write data to standard/backup/record/value file`
 |`hf mfdes value         `|N       |`Operations with value file (get/credit/limited credit/debit/clear)`
 |`hf mfdes clearrecfile  `|N       |`Clear record File`
-|`hf mfdes test          `|Y       |`Test crypto`
+|`hf mfdes test          `|Y       |`Regression crypto tests`
 
 
 ### hf seos
@@ -1288,6 +1297,7 @@ Check column "offline" for their availability.
 |command                  |offline |description
 |-------                  |------- |-----------
 |`trace help             `|Y       |`This help`
+|`trace extract          `|Y       |`Extract authentication challenges found in trace`
 |`trace list             `|Y       |`List protocol data in trace buffer`
 |`trace load             `|Y       |`Load trace from file`
 |`trace save             `|Y       |`Save trace buffer to file`

@@ -121,7 +121,7 @@ void send_wtx(uint16_t wtx) {
 // in ADC units (0 to 1023). Also a routine to sum up a number of samples and
 // return that.
 //-----------------------------------------------------------------------------
-static uint16_t ReadAdc(int ch) {
+static uint16_t ReadAdc(uint8_t ch) {
 
     // Note: ADC_MODE_PRESCALE and ADC_MODE_SAMPLE_HOLD_TIME are set to the maximum allowed value.
     // AMPL_HI is are high impedance (10MOhm || 1MOhm) output, the input capacitance of the ADC is 12pF (typical). This results in a time constant
@@ -147,11 +147,11 @@ static uint16_t ReadAdc(int ch) {
 }
 
 // was static - merlok
-uint16_t AvgAdc(int ch) {
+uint16_t AvgAdc(uint8_t ch) {
     return SumAdc(ch, 32) >> 5;
 }
 
-uint16_t SumAdc(int ch, int NbSamples) {
+uint16_t SumAdc(uint8_t ch, uint8_t NbSamples) {
     uint16_t a = 0;
     for (uint8_t i = 0; i < NbSamples; i++)
         a += ReadAdc(ch);
@@ -286,6 +286,7 @@ static void SendVersion(void) {
         strncat(VersionString, temp, sizeof(VersionString) - strlen(VersionString) - 1);
         strncat(VersionString, "\n", sizeof(VersionString) - strlen(VersionString) - 1);
     }
+
 
     FormatVersionInformation(temp, sizeof(temp), "       os: ", &g_version_information);
     strncat(VersionString, temp, sizeof(VersionString) - strlen(VersionString) - 1);
@@ -1271,6 +1272,14 @@ static void PacketReceived(PacketCommandNG *packet) {
             DisablePrivacySlixLIso15693(payload->pwd);
             break;
         }
+        case CMD_HF_ISO15693_SLIX_L_DISABLE_AESAFI: {
+            struct p {
+                uint8_t pwd[4];
+            } PACKED;
+            struct p *payload = (struct p *) packet->data.asBytes;
+            DisableEAS_AFISlixLIso15693(payload->pwd);
+            break;
+        }
 
 #endif
 
@@ -1285,11 +1294,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_LEGIC_WRITER: {
-            LegicRfWriter(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            legic_packet_t *payload = (legic_packet_t *) packet->data.asBytes;
+            LegicRfWriter(payload->offset, payload->len, payload->iv, payload->data);
             break;
         }
         case CMD_HF_LEGIC_READER: {
-            LegicRfReader(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2]);
+            legic_packet_t *payload = (legic_packet_t *) packet->data.asBytes;
+            LegicRfReader(payload->offset, payload->len, payload->iv);
             break;
         }
         case CMD_HF_LEGIC_INFO: {
@@ -1302,10 +1313,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             // involved in dealing with emulator memory. But if it is called later, it might
             // destroy the Emulator Memory.
             //-----------------------------------------------------------------------------
-            // arg0 = offset
-            // arg1 = num of bytes
             FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
-            emlSet(packet->data.asBytes, packet->oldarg[0], packet->oldarg[1]);
+            legic_packet_t *payload = (legic_packet_t *) packet->data.asBytes;
+            emlSet(payload->data, payload->offset, payload->len);
             break;
         }
 #endif
@@ -1395,7 +1405,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_HF_ISO14443A_SIMULATE: {
             struct p {
                 uint8_t tagtype;
-                uint8_t flags;
+                uint16_t flags;
                 uint8_t uid[10];
                 uint8_t exitAfter;
             } PACKED;

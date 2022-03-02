@@ -141,6 +141,12 @@ if (NOT SKIPREADLINE EQUAL 1)
     if (READLINE_INCLUDE_DIRS AND READLINE_LIBRARIES)
         set(READLINE_FOUND ON)
     endif (READLINE_INCLUDE_DIRS AND READLINE_LIBRARIES)
+else (NOT SKIPREADLINE EQUAL 1)
+    if (NOT SKIPLINENOISE EQUAL 1)
+        if (EXISTS ${PM3_ROOT}/client/deps/linenoise/)
+            set(LINENOISE_LOCAL_FOUND ON)
+        endif (EXISTS ${PM3_ROOT}/client/deps/linenoise/)
+    endif (NOT SKIPLINENOISE EQUAL 1)
 endif (NOT SKIPREADLINE EQUAL 1)
 
 if (NOT SKIPJANSSONSYSTEM EQUAL 1)
@@ -341,10 +347,9 @@ set (TARGET_SOURCES
         ${PM3_ROOT}/client/src/pm3.c
         ${PM3_ROOT}/client/src/pm3_binlib.c
         ${PM3_ROOT}/client/src/pm3_bitlib.c
-        ${PM3_ROOT}/client/src/prng.c
+        ${PM3_ROOT}/client/src/pm3line.c
         ${PM3_ROOT}/client/src/scandir.c
         ${PM3_ROOT}/client/src/scripting.c
-        ${PM3_ROOT}/client/src/tea.c
         ${PM3_ROOT}/client/src/ui.c
         ${PM3_ROOT}/client/src/util.c
         ${PM3_ROOT}/client/src/wiegand_formats.c
@@ -354,7 +359,7 @@ set (TARGET_SOURCES
 
 add_custom_command(
     OUTPUT  ${CMAKE_BINARY_DIR}/version_pm3.c
-    COMMAND sh ${PM3_ROOT}/tools/mkversion.sh > ${CMAKE_BINARY_DIR}/version_pm3.c || perl ${PM3_ROOT}/tools/mkversion.pl > ${CMAKE_BINARY_DIR}/version_pm3.c || ${CMAKE_COMMAND} -E copy ${PM3_ROOT}/common/default_version_pm3.c ${CMAKE_BINARY_DIR}/version_pm3.c
+    COMMAND sh ${PM3_ROOT}/tools/mkversion.sh > ${CMAKE_BINARY_DIR}/version_pm3.c || ${CMAKE_COMMAND} -E copy ${PM3_ROOT}/common/default_version_pm3.c ${CMAKE_BINARY_DIR}/version_pm3.c
     DEPENDS ${PM3_ROOT}/common/default_version_pm3.c
 )
 
@@ -502,6 +507,18 @@ else (SKIPREADLINE EQUAL 1)
     endif (READLINE_FOUND)
 endif(SKIPREADLINE EQUAL 1)
 
+if (NOT READLINE_FOUND)
+    if (SKIPLINENOISE EQUAL 1)
+        message(STATUS "Linenoise library: skipped")
+    else (SKIPLINENOISE EQUAL 1)
+        if (LINENOISE_LOCAL_FOUND)
+            message(STATUS "Linenoise library: enabled")
+        else (LINENOISE_LOCAL_FOUND)
+            message(STATUS "Linenoise library: Linenoise not found, disabled")
+        endif (LINENOISE_LOCAL_FOUND)
+    endif (SKIPLINENOISE EQUAL 1)
+endif (NOT READLINE_FOUND)
+
 if (SKIPWHEREAMISYSTEM EQUAL 1)
     message(STATUS "Whereami library:  local library forced")
 else (SKIPWHEREAMISYSTEM EQUAL 1)
@@ -581,6 +598,14 @@ endif (NOT APPLE)
 if (NOT JANSSON_FOUND)
     set(ADDITIONAL_LNK pm3rrg_rdv4_jansson ${ADDITIONAL_LNK})
 endif (NOT JANSSON_FOUND)
+
+if (NOT READLINE_FOUND)
+    if (LINENOISE_LOCAL_FOUND)
+        add_definitions("-DHAVE_LINENOISE")
+        set(ADDITIONAL_LNK pm3rrg_rdv4_linenoise ${ADDITIONAL_LNK})
+    endif (LINENOISE_LOCAL_FOUND)
+endif (NOT READLINE_FOUND)
+
 if (NOT WHEREAMI_FOUND)
     set(ADDITIONAL_LNK pm3rrg_rdv4_whereami ${ADDITIONAL_LNK})
 endif (NOT WHEREAMI_FOUND)

@@ -770,6 +770,35 @@ static bool Unpack_H10302(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
+static bool Pack_P10004(wiegand_card_t *card, wiegand_message_t *packed, bool preamble) {
+    memset(packed, 0, sizeof(wiegand_message_t));
+
+    if (card->FacilityCode > 0x00001FFF) return false; // Can't encode FC.
+    if (card->CardNumber > 0x0003FFFF) return false; // Can't encode CN.
+    if (card->IssueLevel > 0) return false; // Not used in this format
+    if (card->OEM > 0) return false; // Not used in this format
+
+    packed->Length = 37; // Set number of bits
+
+    set_linear_field(packed, card->FacilityCode, 1, 13);
+    set_linear_field(packed, card->CardNumber, 14, 18);
+    // unknown parity scheme
+    if (preamble)
+        return add_HID_header(packed);
+    return true;
+}
+
+static bool Unpack_P10004(wiegand_message_t *packed, wiegand_card_t *card) {
+    memset(card, 0, sizeof(wiegand_card_t));
+
+    if (packed->Length != 37) return false; // Wrong length? Stop here.
+
+    card->FacilityCode = get_linear_field(packed, 1, 13);
+    card->CardNumber = get_linear_field(packed, 14, 18);
+    // unknown parity scheme
+    return true;
+}
+
 static bool Pack_H10304(wiegand_card_t *card, wiegand_message_t *packed, bool preamble) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
@@ -1259,6 +1288,11 @@ static bool Unpack_bc40(wiegand_message_t *packed, wiegand_card_t *card) {
 
 void print_desc_wiegand(cardformat_t *fmt, wiegand_message_t *packed) {
 
+    // return if invalid card format
+    if (fmt->Name == NULL) {
+        return;
+    }
+
     char *s = calloc(128, sizeof(uint8_t));
     sprintf(s, _YELLOW_("%-10s")" %-32s",  fmt->Name, fmt->Descrp);
 
@@ -1365,6 +1399,7 @@ static const cardformat_t FormatTable[] = {
     {"H10320",  Pack_H10320,  Unpack_H10320,  "HID H10320 36-bit BCD",      {1, 0, 0, 0, 1}}, // from Proxmark forums
     {"H10302",  Pack_H10302,  Unpack_H10302,  "HID H10302 37-bit huge ID",  {1, 0, 0, 0, 1}}, // from Proxmark forums
     {"H10304",  Pack_H10304,  Unpack_H10304,  "HID H10304 37-bit",          {1, 1, 0, 0, 1}}, // from cardinfo.barkweb.com.au
+    {"P10004",  Pack_P10004,  Unpack_P10004,  "HID P10004 37-bit PCSC",     {1, 1, 0, 0, 0}}, // from @bthedorff; PR #1559
     {"HGen37",  Pack_HGeneric37, Unpack_HGeneric37,  "HID Generic 37-bit", {1, 0, 0, 0, 1}}, // from cardinfo.barkweb.com.au
     {"MDI37",   Pack_MDI37,   Unpack_MDI37,   "PointGuard MDI 37-bit",         {1, 1, 0, 0, 1}}, // from cardinfo.barkweb.com.au
     {"BQT38",   Pack_bqt38,   Unpack_bqt38,   "BQT 38-bit",                    {1, 1, 1, 0, 1}}, // from cardinfo.barkweb.com.au
@@ -1397,6 +1432,11 @@ void HIDListFormats(void) {
 }
 
 cardformat_t HIDGetCardFormat(int idx) {
+
+    // if idx is out-of-bounds, return the last item
+    if ((idx < 0) || (idx > ARRAYLEN(FormatTable) - 2)) {
+        return FormatTable[ARRAYLEN(FormatTable) - 1];
+    }
     return FormatTable[idx];
 }
 

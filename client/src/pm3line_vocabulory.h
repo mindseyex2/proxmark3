@@ -16,22 +16,14 @@
 // readline auto complete utilities
 //-----------------------------------------------------------------------------
 
-#ifndef RL_VOCABULORY_H__
-#define RL_VOCABULORY_H__
+#ifndef PM3LINE_VOCABULORY_H__
+#define PM3LINE_VOCABULORY_H__
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(HAVE_READLINE)
-#include <stdlib.h>
-#include <string.h>
-#include <readline/readline.h>
-#include "ui.h"                          // g_session
-#include "util.h"                        // str_ndup
-
-char* rl_command_generator(const char *text, int state);
-char **rl_command_completion(const char *text, int start, int end);
+#include <stdbool.h>
 
 typedef struct vocabulory_s {
     bool offline;
@@ -71,7 +63,6 @@ const static vocabulory_t vocabulory[] = {
     { 1, "analyse crc" }, 
     { 1, "analyse chksum" }, 
     { 1, "analyse dates" }, 
-    { 1, "analyse tea" }, 
     { 1, "analyse lfsr" }, 
     { 1, "analyse a" }, 
     { 1, "analyse nuid" }, 
@@ -185,11 +176,17 @@ const static vocabulory_t vocabulory[] = {
     { 0, "hf 15 csetuid" }, 
     { 1, "hf cipurse help" }, 
     { 0, "hf cipurse info" }, 
+    { 0, "hf cipurse select" }, 
     { 0, "hf cipurse auth" }, 
     { 0, "hf cipurse read" }, 
     { 0, "hf cipurse write" }, 
     { 0, "hf cipurse aread" }, 
+    { 0, "hf cipurse awrite" }, 
+    { 0, "hf cipurse formatall" }, 
+    { 0, "hf cipurse create" }, 
     { 0, "hf cipurse delete" }, 
+    { 0, "hf cipurse updkey" }, 
+    { 0, "hf cipurse updakey" }, 
     { 0, "hf cipurse default" }, 
     { 1, "hf cipurse test" }, 
     { 1, "hf epa help" }, 
@@ -265,18 +262,20 @@ const static vocabulory_t vocabulory[] = {
     { 1, "hf iclass permutekey" }, 
     { 1, "hf iclass view" }, 
     { 1, "hf legic help" }, 
-    { 1, "hf legic list" }, 
-    { 0, "hf legic reader" }, 
-    { 0, "hf legic info" }, 
     { 0, "hf legic dump" }, 
-    { 0, "hf legic restore" }, 
+    { 0, "hf legic info" }, 
+    { 1, "hf legic list" }, 
     { 0, "hf legic rdbl" }, 
-    { 0, "hf legic sim" }, 
-    { 0, "hf legic wrbl" }, 
-    { 1, "hf legic crc" }, 
-    { 1, "hf legic eload" }, 
-    { 1, "hf legic esave" }, 
+    { 0, "hf legic reader" }, 
+    { 0, "hf legic restore" }, 
     { 0, "hf legic wipe" }, 
+    { 0, "hf legic wrbl" }, 
+    { 0, "hf legic sim" }, 
+    { 0, "hf legic eload" }, 
+    { 0, "hf legic esave" }, 
+    { 0, "hf legic eview" }, 
+    { 1, "hf legic crc" }, 
+    { 1, "hf legic view" }, 
     { 1, "hf lto help" }, 
     { 0, "hf lto dump" }, 
     { 0, "hf lto restore" }, 
@@ -306,6 +305,7 @@ const static vocabulory_t vocabulory[] = {
     { 0, "hf mf rdsc" }, 
     { 0, "hf mf restore" }, 
     { 0, "hf mf setmod" }, 
+    { 1, "hf mf value" }, 
     { 1, "hf mf view" }, 
     { 0, "hf mf wipe" }, 
     { 0, "hf mf wrbl" }, 
@@ -353,6 +353,7 @@ const static vocabulory_t vocabulory[] = {
     { 0, "hf mfu ndefread" }, 
     { 0, "hf mfu rdbl" }, 
     { 0, "hf mfu restore" }, 
+    { 1, "hf mfu view" }, 
     { 0, "hf mfu wrbl" }, 
     { 0, "hf mfu eload" }, 
     { 0, "hf mfu eview" }, 
@@ -703,6 +704,7 @@ const static vocabulory_t vocabulory[] = {
     { 1, "script list" }, 
     { 1, "script run" }, 
     { 1, "trace help" }, 
+    { 1, "trace extract" }, 
     { 1, "trace list" }, 
     { 1, "trace load" }, 
     { 1, "trace save" }, 
@@ -721,50 +723,6 @@ const static vocabulory_t vocabulory[] = {
     { 1, "wiegand decode" }, 
     {0, NULL}
 };
-
-
-char **rl_command_completion(const char *text, int start, int end) {
-    rl_attempted_completion_over = 0;
-    return rl_completion_matches (text, rl_command_generator);
-}
-
-char* rl_command_generator(const char *text, int state) {
-    static int index;
-    static size_t len;
-    size_t rlen = strlen(rl_line_buffer);
-    const char *command;
-
-    if (!state) {
-        index = 0;
-        len = strlen(text);
-    }
-
-    while ((command = vocabulory[index].name))  {
-
-        // When no pm3 device present
-        // and the command is not available offline,
-        // we skip it.
-        if ((g_session.pm3_present == false) && (vocabulory[index].offline == false ))  {
-            index++;
-            continue;
-        }
-
-        index++;
-
-        if (strncmp (command, rl_line_buffer, rlen) == 0) {
-            const char *next = command + (rlen - len);
-            const char *space = strstr(next, " ");
-            if (space != NULL) {
-                return str_ndup(next, space - next);
-            }
-            return str_dup(next);
-        }
-    }
-
-    return NULL;
-}
-
-#endif
 
 #ifdef __cplusplus
 }
