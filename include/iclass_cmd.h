@@ -24,7 +24,7 @@
 //-----------------------------------------------------------------------------
 // iCLASS / PICOPASS
 //-----------------------------------------------------------------------------
-
+#define PICOPASS_BLOCK_SIZE    8
 
 // iCLASS reader flags
 #define FLAG_ICLASS_READER_INIT        0x01
@@ -32,6 +32,7 @@
 //#define FLAG_ICLASS_READER_ONLY_ONCE   0x04
 #define FLAG_ICLASS_READER_CREDITKEY   0x08
 #define FLAG_ICLASS_READER_AIA         0x10
+#define FLAG_ICLASS_READER_SHALLOW_MOD 0x20
 
 // iCLASS reader status flags
 #define FLAG_ICLASS_NULL               0x00
@@ -60,6 +61,7 @@ typedef struct {
     bool use_replay;
     bool send_reply;
     bool do_auth;
+    bool shallow_mod;
     uint8_t blockno;
 } PACKED iclass_auth_req_t;
 
@@ -82,7 +84,14 @@ typedef struct {
 typedef struct {
     iclass_auth_req_t req;
     uint8_t data[8];
+    uint8_t mac[4];
 } PACKED iclass_writeblock_req_t;
+
+// iCLASS write block request data structure
+typedef struct {
+    iclass_auth_req_t req;
+    uint8_t epurse[4];
+} PACKED iclass_credit_epurse_t;
 
 // iCLASS dump data structure
 typedef struct {
@@ -96,12 +105,18 @@ typedef struct {
     iclass_restore_item_t blocks[];
 } PACKED iclass_restore_req_t;
 
+typedef struct {
+    iclass_auth_req_t req;
+    iclass_auth_req_t req2;
+} PACKED iclass_recover_req_t;
+
 typedef struct iclass_premac {
     uint8_t mac[4];
 } PACKED iclass_premac_t;
 
 typedef struct {
     bool use_credit_key;
+    bool shallow_mod;
     uint8_t count;
     iclass_premac_t items[];
 } PACKED iclass_chk_t;

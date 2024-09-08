@@ -23,7 +23,6 @@
 #endif
 #include "ui.h"
 #include "commonutil.h"  // ARRAYLEN
-
 #include <stdio.h> // for Mingw readline
 #include <stdarg.h>
 #include <stdlib.h>
@@ -50,9 +49,11 @@ session_arg_t g_session;
 
 double g_CursorScaleFactor = 1;
 char g_CursorScaleFactorUnit[11] = {0};
-double g_PlotGridX = 0, g_PlotGridY = 0, g_PlotGridXdefault = 64, g_PlotGridYdefault = 64;
-uint32_t g_CursorCPos = 0, g_CursorDPos = 0, g_GraphStop = 0;
+double g_PlotGridX = 0, g_PlotGridY = 0;
+double g_DefaultGridX = 64, g_DefaultGridY = 64;
 uint32_t g_GraphStart = 0; // Starting point/offset for the left side of the graph
+uint32_t g_GraphStop = 0;
+uint32_t g_GraphStart_old = 0;
 double g_GraphPixelsPerPoint = 1.f; // How many visual pixels are between each sample point (x axis)
 static bool flushAfterWrite = false;
 double g_GridOffset = 0;
@@ -62,10 +63,18 @@ pthread_mutex_t g_print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void fPrintAndLog(FILE *stream, const char *fmt, ...);
 
+#ifdef _WIN32
+#define MKDIR_CHK _mkdir(path)
+#else
+#define MKDIR_CHK mkdir(path, 0700)
+#endif
+
+
 // needed by flasher, so let's put it here instead of fileutils.c
 int searchHomeFilePath(char **foundpath, const char *subdir, const char *filename, bool create_home) {
-    if (foundpath == NULL)
+    if (foundpath == NULL) {
         return PM3_EINVARG;
+    }
 
     const char *user_path = get_my_user_directory();
     if (user_path == NULL) {
@@ -75,20 +84,21 @@ int searchHomeFilePath(char **foundpath, const char *subdir, const char *filenam
 
     size_t pathlen = strlen(user_path) + strlen(PM3_USER_DIRECTORY) + 1;
     char *path = calloc(pathlen, sizeof(char));
-    if (path == NULL)
+    if (path == NULL) {
         return PM3_EMALLOC;
+    }
 
     strcpy(path, user_path);
     strcat(path, PM3_USER_DIRECTORY);
-
     int result;
+
 #ifdef _WIN32
     struct _stat st;
     // Mingw _stat fails if path ends with /, so let's use a stripped path
-    if (path[strlen(path) - 1] == '/') {
-        path[strlen(path) - 1] = '\0';
+    if (str_endswith(path, PATHSEP)) {
+        memset(path + (strlen(path) - strlen(PATHSEP)), 0x00, strlen(PATHSEP));
         result = _stat(path, &st);
-        path[strlen(path)] = '/';
+        strcat(path, PATHSEP);
     } else {
         result = _stat(path, &st);
     }
@@ -96,24 +106,21 @@ int searchHomeFilePath(char **foundpath, const char *subdir, const char *filenam
     struct stat st;
     result = stat(path, &st);
 #endif
+
     if ((result != 0) && create_home) {
 
-#ifdef _WIN32
-        if (_mkdir(path))
-#else
-        if (mkdir(path, 0700))
-#endif
-        {
+        if (MKDIR_CHK) {
             fprintf(stderr, "Could not create user directory %s\n", path);
             free(path);
             return PM3_EFILE;
         }
     }
+
     if (subdir != NULL) {
         pathlen += strlen(subdir);
         char *tmp = realloc(path, pathlen * sizeof(char));
         if (tmp == NULL) {
-            //free(path);
+            free(path);
             return PM3_EMALLOC;
         }
         path = tmp;
@@ -121,24 +128,20 @@ int searchHomeFilePath(char **foundpath, const char *subdir, const char *filenam
 
 #ifdef _WIN32
         // Mingw _stat fails if path ends with /, so let's use a stripped path
-        if (path[strlen(path) - 1] == '/') {
-            path[strlen(path) - 1] = '\0';
+        if (str_endswith(path, PATHSEP)) {
+            memset(path + (strlen(path) - strlen(PATHSEP)), 0x00, strlen(PATHSEP));
             result = _stat(path, &st);
-            path[strlen(path)] = '/';
+            strcat(path, PATHSEP);
         } else {
             result = _stat(path, &st);
         }
 #else
         result = stat(path, &st);
 #endif
+
         if ((result != 0) && create_home) {
 
-#ifdef _WIN32
-            if (_mkdir(path))
-#else
-            if (mkdir(path, 0700))
-#endif
-            {
+            if (MKDIR_CHK) {
                 fprintf(stderr, "Could not create user directory %s\n", path);
                 free(path);
                 return PM3_EFILE;
@@ -150,16 +153,46 @@ int searchHomeFilePath(char **foundpath, const char *subdir, const char *filenam
         *foundpath = path;
         return PM3_SUCCESS;
     }
+
     pathlen += strlen(filename);
     char *tmp = realloc(path, pathlen * sizeof(char));
     if (tmp == NULL) {
-        //free(path);
+        free(path);
         return PM3_EMALLOC;
     }
+
     path = tmp;
     strcat(path, filename);
     *foundpath = path;
+
     return PM3_SUCCESS;
+}
+
+void free_grabber(void) {
+    free(g_grabbed_output.ptr);
+    g_grabbed_output.ptr = NULL;
+    g_grabbed_output.size = 0;
+    g_grabbed_output.idx = 0;
+}
+
+static void fill_grabber(const char *string) {
+    if (g_grabbed_output.ptr == NULL || g_grabbed_output.size - g_grabbed_output.idx < MAX_PRINT_BUFFER) {
+        char *tmp = realloc(g_grabbed_output.ptr, g_grabbed_output.size + MAX_PRINT_BUFFER);
+        if (tmp == NULL) {
+            // We leave current g_grabbed_output untouched
+            PrintAndLogEx(ERR, "Out of memory error in fill_grabber()");
+            return;
+        }
+        g_grabbed_output.ptr = tmp;
+        g_grabbed_output.size += MAX_PRINT_BUFFER;
+    }
+    int len = snprintf(g_grabbed_output.ptr + g_grabbed_output.idx, MAX_PRINT_BUFFER, "%s", string);
+    if (len < 0 || len > MAX_PRINT_BUFFER) {
+        // We leave current g_grabbed_output_len untouched
+        PrintAndLogEx(ERR, "snprintf error in fill_grabber()");
+        return;
+    }
+    g_grabbed_output.idx += len;
 }
 
 void PrintAndLogOptions(const char *str[][2], size_t size, size_t space) {
@@ -293,12 +326,15 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
     } else {
         snprintf(buffer2, sizeof(buffer2), "%s%s", prefix, buffer);
         if (level == INPLACE) {
-            char buffer3[sizeof(buffer2)] = {0};
-            char buffer4[sizeof(buffer2)] = {0};
-            memcpy_filter_ansi(buffer3, buffer2, sizeof(buffer2), !g_session.supports_colors);
-            memcpy_filter_emoji(buffer4, buffer3, sizeof(buffer3), g_session.emoji_mode);
-            fprintf(stream, "\r%s", buffer4);
-            fflush(stream);
+            // ignore INPLACE if rest of output is grabbed
+            if (!(g_printAndLog & PRINTANDLOG_GRAB)) {
+                char buffer3[sizeof(buffer2)] = {0};
+                char buffer4[sizeof(buffer2)] = {0};
+                memcpy_filter_ansi(buffer3, buffer2, sizeof(buffer2), !g_session.supports_colors);
+                memcpy_filter_emoji(buffer4, buffer3, sizeof(buffer3), g_session.emoji_mode);
+                fprintf(stream, "\r%s", buffer4);
+                fflush(stream);
+            }
         } else {
             fPrintAndLog(stream, "%s", buffer2);
         }
@@ -312,8 +348,7 @@ static void fPrintAndLog(FILE *stream, const char *fmt, ...) {
     char buffer[MAX_PRINT_BUFFER] = {0};
     char buffer2[MAX_PRINT_BUFFER] = {0};
     char buffer3[MAX_PRINT_BUFFER] = {0};
-    // lock this section to avoid interlacing prints from different threads
-    pthread_mutex_lock(&g_print_lock);
+
     bool linefeed = true;
 
     if (logging && g_session.incognito) {
@@ -348,6 +383,8 @@ static void fPrintAndLog(FILE *stream, const char *fmt, ...) {
         }
     }
 
+    // lock this section to avoid interlacing prints from different threads
+    pthread_mutex_lock(&g_print_lock);
 
 // If there is an incoming message from the hardware (eg: lf hid read) in
 // the background (while the prompt is displayed and accepting user input),
@@ -394,17 +431,31 @@ static void fPrintAndLog(FILE *stream, const char *fmt, ...) {
     }
 #endif
 
-    if ((g_printAndLog & PRINTANDLOG_LOG) && logging && logfile) {
+    if (((g_printAndLog & PRINTANDLOG_LOG) && logging && logfile) ||
+            (g_printAndLog & PRINTANDLOG_GRAB)) {
         memcpy_filter_emoji(buffer3, buffer2, sizeof(buffer2), EMO_ALTTEXT);
-        if (filter_ansi) { // already done
+        if (!filter_ansi) {
+            memcpy_filter_ansi(buffer, buffer3, sizeof(buffer3), true);
+        }
+    }
+    if ((g_printAndLog & PRINTANDLOG_LOG) && logging && logfile) {
+        if (filter_ansi) {
             fprintf(logfile, "%s", buffer3);
         } else {
-            memcpy_filter_ansi(buffer, buffer3, sizeof(buffer3), true);
             fprintf(logfile, "%s", buffer);
         }
         if (linefeed)
             fprintf(logfile, "\n");
         fflush(logfile);
+    }
+    if (g_printAndLog & PRINTANDLOG_GRAB) {
+        if (filter_ansi) {
+            fill_grabber(buffer3);
+        } else {
+            fill_grabber(buffer);
+        }
+        if (linefeed)
+            fill_grabber("\n");
     }
 
     if (flushAfterWrite)
@@ -527,12 +578,11 @@ void memcpy_filter_emoji(void *dest, const void *src, size_t n, emojiMode_t mode
         uint8_t emojified_token_length = 0;
         char *current_token = NULL;
         uint8_t current_token_length = 0;
-        char current_char;
         char *rdest = (char *)dest;
         char *rsrc = (char *)src;
         uint16_t si = 0;
         for (size_t i = 0; i < n; i++) {
-            current_char = rsrc[i];
+            char current_char = rsrc[i];
 
             if (current_token_length == 0) {
                 // starting a new token.
@@ -641,8 +691,9 @@ void iceSimple_Filter(int *data, const size_t len, uint8_t k) {
     }
 }
 
-void print_progress(size_t count, uint64_t max, barMode_t style) {
+void print_progress(uint64_t count, uint64_t max, barMode_t style) {
     int cols = 100 + 35;
+    max = (count > max) ? count : max;
 #if defined(HAVE_READLINE)
     static int prev_cols = 0;
     int rows;
@@ -693,13 +744,15 @@ void print_progress(size_t count, uint64_t max, barMode_t style) {
     for (; i < unit * value; i += unit) {
         memcpy(bar + i, block[mode], unit);
     }
-    // add last block
-    if (mode == 1) {
-        memcpy(bar + i, smoothtable[PERCENTAGEFRAC(count, max)], unit);
-    } else {
-        memcpy(bar + i, space[mode], unit);
+    if (i < unit * width) {
+        // add last block
+        if (mode == 1) {
+            memcpy(bar + i, smoothtable[PERCENTAGEFRAC(count, max)], unit);
+        } else {
+            memcpy(bar + i, space[mode], unit);
+        }
+        i += unit;
     }
-    i += unit;
     // add spaces
     for (; i < unit * width; i += unit) {
         memcpy(bar + i, space[mode], unit);
@@ -719,27 +772,21 @@ void print_progress(size_t count, uint64_t max, barMode_t style) {
         snprintf(cbar,  collen,  "%s", bar);
     }
 
-    size_t olen = strlen(cbar) + 40;
-    char *out = (char *)calloc(olen, sizeof(uint8_t));
-
     switch (style) {
         case STYLE_BAR: {
-            sprintf(out, "%s", cbar);
-            printf("\b%c[2K\r[" _YELLOW_("=")"] %s", 27, out);
+            printf("\b%c[2K\r[" _YELLOW_("=")"] %s", 27, cbar);
             break;
         }
         case STYLE_MIXED: {
-            sprintf(out, "%s [ %zu mV / %2u V / %2u Vmax ]", cbar, count, (uint32_t)(count / 1000), (uint32_t)(max / 1000));
-            printf("\b%c[2K\r[" _YELLOW_("=")"] %s", 27, out);
+            printf("\b%c[2K\r[" _YELLOW_("=")"] %s [ %"PRIu64" mV / %2u V / %2u Vmax ]", 27, cbar, count, (uint32_t)(count / 1000), (uint32_t)(max / 1000));
             break;
         }
         case STYLE_VALUE: {
-            printf("[" _YELLOW_("=")"] %zu mV / %2u V / %2u Vmax   \r", count, (uint32_t)(count / 1000), (uint32_t)(max / 1000));
+            printf("[" _YELLOW_("=")"] %"PRIu64" mV / %2u V / %2u Vmax   \r", count, (uint32_t)(count / 1000), (uint32_t)(max / 1000));
             break;
         }
     }
     fflush(stdout);
-    free(out);
     free(bar);
     free(cbar);
 }

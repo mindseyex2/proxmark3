@@ -23,6 +23,7 @@
 #include "common.h"
 
 #include "util.h"       // FILE_PATH_SIZE
+#include "protocol_vigik.h"
 
 #define MIFARE_SECTOR_RETRY     10
 
@@ -73,14 +74,18 @@ int mfnested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo,
 int mfStaticNested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo, uint8_t trgKeyType, uint8_t *resultKey);
 int mfCheckKeys(uint8_t blockNo, uint8_t keyType, bool clear_trace, uint8_t keycnt, uint8_t *keyBlock, uint64_t *key);
 int mfCheckKeys_fast(uint8_t sectorsCnt, uint8_t firstChunk, uint8_t lastChunk,
-                     uint8_t strategy, uint32_t size, uint8_t *keyBlock, sector_t *e_sector, bool use_flashmemory);
+                     uint8_t strategy, uint32_t size, uint8_t *keyBlock, sector_t *e_sector,
+                     bool use_flashmemory, bool verbose);
+int mfCheckKeys_fast_ex(uint8_t sectorsCnt, uint8_t firstChunk, uint8_t lastChunk, uint8_t strategy,
+                        uint32_t size, uint8_t *keyBlock, sector_t *e_sector, bool use_flashmemory,
+                        bool verbose, bool quiet, uint16_t singleSectorParams);
 
 int mfCheckKeys_file(uint8_t *destfn, uint64_t *key);
 
 int mfKeyBrute(uint8_t blockNo, uint8_t keyType, const uint8_t *key, uint64_t *resultkey);
 
-int mfReadSector(uint8_t sectorNo, uint8_t keyType, uint8_t *key, uint8_t *data);
-int mfReadBlock(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t *data);
+int mfReadSector(uint8_t sectorNo, uint8_t keyType, const uint8_t *key, uint8_t *data);
+int mfReadBlock(uint8_t blockNo, uint8_t keyType, const uint8_t *key, uint8_t *data);
 
 int mfEmlGetMem(uint8_t *data, int blockNum, int blocksCount);
 int mfEmlSetMem(uint8_t *data, int blockNum, int blocksCount);
@@ -95,15 +100,23 @@ int mfGen3UID(uint8_t *uid, uint8_t uidlen, uint8_t *oldUid);
 int mfGen3Block(uint8_t *block, int blockLen, uint8_t *newBlock);
 int mfGen3Freeze(void);
 
-int mfG4GetBlock(uint8_t *pwd, uint8_t blockno, uint8_t *data);
-
 int tryDecryptWord(uint32_t nt, uint32_t ar_enc, uint32_t at_enc, uint8_t *data, int len);
 
 int detect_classic_prng(void);
 int detect_classic_nackbug(bool verbose);
-int detect_mf_magic(bool is_mfc);
+uint16_t detect_mf_magic(bool is_mfc, uint8_t key_type, uint64_t key);
 int detect_classic_static_nonce(void);
-int detect_mfc_ev1_signature(uint8_t *signature);
+int detect_classic_static_encrypted_nonce_ex(uint8_t block_no, uint8_t key_type, uint8_t *key, uint8_t block_no_nested, uint8_t key_type_nested, uint8_t *key_nested, uint8_t nr_nested, bool reset, bool hardreset, bool addread, bool addauth, bool incblk2, bool corruptnrar, bool corruptnrarparity, bool verbose);
+int detect_classic_static_encrypted_nonce(uint8_t block_no, uint8_t key_type, uint8_t *key);
+bool detect_mfc_ev1_signature(void);
+int read_mfc_ev1_signature(uint8_t *signature);
+
 
 void mf_crypto1_decrypt(struct Crypto1State *pcs, uint8_t *data, int len, bool isEncrypted);
+
+// remove all sector trailers in a MFC dump
+int convert_mfc_2_arr(uint8_t *in, uint16_t ilen, uint8_t *out, uint16_t *olen);
+const char *vigik_get_service(uint16_t service_code);
+int vigik_verify(mfc_vigik_t *d);
+int vigik_annotate(mfc_vigik_t *d);
 #endif

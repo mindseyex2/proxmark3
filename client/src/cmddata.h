@@ -81,14 +81,15 @@ int printDemodBuff(uint8_t offset, bool strip_leading, bool invert, bool print_h
 
 void setDemodBuff(const uint8_t *buff, size_t size, size_t start_idx);
 bool getDemodBuff(uint8_t *buff, size_t *size);
-void save_restoreDB(uint8_t saveOpt);// option '1' to save g_DemodBuffer any other to restore
 int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveGrph, bool verbose);
 
 int getSamples(uint32_t n, bool verbose);
-int getSamplesEx(uint32_t start, uint32_t end, bool verbose);
+int getSamplesEx(uint32_t start, uint32_t end, bool verbose, bool ignore_lf_config);
+int getSamplesFromBufEx(uint8_t *data, size_t sample_num, uint8_t bits_per_sample, bool verbose);
 
 void setClockGrid(uint32_t clk, int offset);
 int directionalThreshold(const int *in, int *out, size_t len, int8_t up, int8_t down);
+int centerThreshold(const int *in, int *out, size_t len, int8_t up, int8_t down);
 int AskEdgeDetect(const int *in, int *out, int len, int threshold);
 
 #define MAX_DEMOD_BUF_LEN (1024*128)

@@ -22,6 +22,8 @@
 #include <stdbool.h>
 #include "common.h"
 
+#define NDEF_MFC_AID    0xE103
+
 typedef enum {
     tnfEmptyRecord          = 0x00,
     tnfWellKnownRecord      = 0x01,
@@ -29,7 +31,8 @@ typedef enum {
     tnfAbsoluteURIRecord    = 0x03,
     tnfExternalRecord       = 0x04,
     tnfUnknownRecord        = 0x05,
-    tnfUnchangedRecord      = 0x06
+    tnfUnchangedRecord      = 0x06,
+    tnfReservedRecord       = 0x07,
 } TypeNameFormat_t;
 
 typedef enum {
@@ -72,6 +75,6 @@ typedef struct {
 } NDEFHeader_t;
 
 int NDEFDecodeAndPrint(uint8_t *ndef, size_t ndefLen, bool verbose);
-int NDEFRecordsDecodeAndPrint(uint8_t *ndefRecord, size_t ndefRecordLen);
-
+int NDEFRecordsDecodeAndPrint(uint8_t *ndefRecord, size_t ndefRecordLen, bool verbose);
+int NDEFGetTotalLength(uint8_t *ndef, size_t ndeflen, size_t *outlen);
 #endif // _NDEF_H_

@@ -263,28 +263,32 @@ static const char *felica_model_name(uint8_t rom_type, uint8_t ic_type) {
  * @param verbose prints out the response received.
  */
 static bool waitCmdFelica(uint8_t iSelect, PacketResponseNG *resp, bool verbose) {
-    if (WaitForResponseTimeout(CMD_ACK, resp, 2000)) {
-        uint16_t len = iSelect ? (resp->oldarg[1] & 0xffff) : (resp->oldarg[0] & 0xffff);
-        if (verbose) {
-            PrintAndLogEx(SUCCESS, "client received %i octets", len);
-            if (len == 0 || len == 1) {
-                PrintAndLogEx(ERR, "Could not receive data correctly!");
-                return false;
-            }
-            PrintAndLogEx(SUCCESS, "%s", sprint_hex(resp->data.asBytes, len));
-            if (!check_crc(CRC_FELICA, resp->data.asBytes + 2, len - 2)) {
-                PrintAndLogEx(WARNING, "wrong or no CRC bytes");
-            }
-            if (resp->data.asBytes[0] != 0xB2 && resp->data.asBytes[1] != 0x4D) {
-                PrintAndLogEx(ERR, "received incorrect frame format!");
-                return false;
-            }
-        }
-        return true;
-    } else {
+    if (WaitForResponseTimeout(CMD_ACK, resp, 2000) == false) {
         PrintAndLogEx(WARNING, "timeout while waiting for reply.");
+        return false;
     }
-    return false;
+
+    uint16_t len = iSelect ? (resp->oldarg[1] & 0xffff) : (resp->oldarg[0] & 0xffff);
+
+    if (verbose) {
+
+        if (len == 0 || len == 1) {
+            PrintAndLogEx(ERR, "Could not receive data correctly!");
+            return false;
+        }
+
+        PrintAndLogEx(SUCCESS, "(%u) %s", len, sprint_hex(resp->data.asBytes, len));
+
+        if (check_crc(CRC_FELICA, resp->data.asBytes + 2, len - 2) == false) {
+            PrintAndLogEx(WARNING, "CRC ( " _RED_("fail") " )");
+        }
+
+        if (resp->data.asBytes[0] != 0xB2 && resp->data.asBytes[1] != 0x4D) {
+            PrintAndLogEx(ERR, "received incorrect frame format!");
+            return false;
+        }
+    }
+    return true;
 }
 
 
@@ -308,13 +312,13 @@ static int CmdHFFelicaList(const char *Cmd) {
 
 int read_felica_uid(bool loop, bool verbose) {
 
-    int res = PM3_SUCCESS;
+    int res = PM3_ETIMEOUT;
 
     do {
         clearCommandBuffer();
         SendCommandMIX(CMD_HF_FELICA_COMMAND, FELICA_CONNECT, 0, 0, NULL, 0);
         PacketResponseNG resp;
-        if (WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
+        if (WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
 
             uint8_t status = resp.oldarg[0] & 0xFF;
 
@@ -338,7 +342,10 @@ int read_felica_uid(bool loop, bool verbose) {
             }
             PrintAndLogEx(SUCCESS, "IDm: " _GREEN_("%s"), sprint_hex_inrow(card.IDm, sizeof(card.IDm)));
             set_last_known_card(card);
+
+            res = PM3_SUCCESS;
         }
+
     } while (loop && kbd_enter_pressed() == false);
 
     DropField();
@@ -566,7 +573,7 @@ static void reverse_3des_key(const uint8_t *master_key, int length, uint8_t *rev
     for (int i = 0; i < length; i++) {
         reverse_master_key[i] = master_key[(length - 1) - i];
     }
-};
+}
 
 /**
  * Command parser for auth1
@@ -591,7 +598,7 @@ static int CmdHFFelicaAuthentication1(const char *Cmd) {
         arg_str0(NULL, "sn",  "<hex>", "number of service, 1 byte"),
         arg_str0(NULL, "scl", "<hex>", "service code list, 2 bytes"),
         arg_str0("k", "key",  "<hex>", "3des key, 16 bytes"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -702,7 +709,7 @@ static int CmdHFFelicaAuthentication1(const char *Cmd) {
     PrintAndLogEx(INFO, "Reader challenge (unencrypted): %s", sprint_hex(nonce, 8));
 
     // Create M1c Challenge with 3DES (3 Keys = 24, 2 Keys = 16)
-    uint8_t master_key[24];
+    uint8_t master_key[24] = {0};
     mbedtls_des3_context des3_ctx;
     mbedtls_des3_init(&des3_ctx);
 
@@ -804,7 +811,7 @@ static int CmdHFFelicaAuthentication2(const char *Cmd) {
         arg_str0("i", NULL, "<hex>", "set custom IDm"),
         arg_str0("c", "cc", "<hex>", "M3c card challenge, 8 bytes"),
         arg_str0("k", "key",  "<hex>", "3des M3c decryption key, 16 bytes"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -970,7 +977,7 @@ static int CmdHFFelicaWritePlain(const char *Cmd) {
         arg_str0(NULL, "scl", "<hex>", "service code list"),
         arg_str0(NULL, "bn",  "<hex>", "number of block"),
         arg_str0(NULL, "ble", "<hex>", "block list element (def 2|3 bytes)"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1136,7 +1143,7 @@ static int CmdHFFelicaReadPlain(const char *Cmd) {
         arg_str0(NULL, "scl", "<hex>", "service code list"),
         arg_str0(NULL, "bn",  "<hex>", "number of block"),
         arg_str0(NULL, "ble", "<hex>", "block list element (def 2|3 bytes)"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1364,7 +1371,7 @@ static int CmdHFFelicaRequestSpecificationVersion(const char *Cmd) {
         arg_param_begin,
         arg_str0("i", NULL, "<hex>", "set custom IDm"),
         arg_str0("r", NULL, "<hex>", "set custom reserve"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1471,7 +1478,7 @@ static int CmdHFFelicaResetMode(const char *Cmd) {
         arg_param_begin,
         arg_str0("i", NULL, "<hex>", "set custom IDm"),
         arg_str0("r", NULL, "<hex>", "set custom reserve"),
-        arg_lit0("v", "verbose", "verbose helptext"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1783,7 +1790,7 @@ static int CmdHFFelicaSniff(const char *Cmd) {
 
 
     PrintAndLogEx(INFO, "Sniff Felica,  getting first %" PRIu32 " frames, skipping after %" PRIu32 " triggers", payload.samples,   payload.triggers);
-    PrintAndLogEx(INFO, "Press " _GREEN_("<Enter>") " or pm3-button to abort sniffing");
+    PrintAndLogEx(INFO, "Press " _GREEN_("pm3 button") " or " _GREEN_("<Enter>") " to abort sniffing");
     clearCommandBuffer();
     SendCommandNG(CMD_HF_FELICA_SNIFF, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
@@ -1805,7 +1812,7 @@ static int CmdHFFelicaSniff(const char *Cmd) {
     }
 
     PrintAndLogEx(HINT, "try `" _YELLOW_("hf felica list") "` to view");
-    PrintAndLogEx(INFO, "Done");
+    PrintAndLogEx(INFO, "Done!");
     return PM3_SUCCESS;
 }
 
@@ -1830,7 +1837,7 @@ static int CmdHFFelicaSimLite(const char *Cmd) {
     CLIParserFree(ctx);
 
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(INFO, "Press " _GREEN_("<Enter>") " or pm3-button to abort simulation");
+    PrintAndLogEx(INFO, "Press " _GREEN_("pm3 button") " or " _GREEN_("<Enter>") " to abort simulation");
 
     clearCommandBuffer();
     SendCommandNG(CMD_HF_FELICALITE_SIMULATE, payload.uid, sizeof(payload));
@@ -1852,7 +1859,7 @@ static int CmdHFFelicaSimLite(const char *Cmd) {
         }
     }
 
-    PrintAndLogEx(INFO, "Done");
+    PrintAndLogEx(INFO, "Done!");
     return PM3_SUCCESS;
 }
 
@@ -2035,7 +2042,7 @@ static int CmdHFFelicaDumpLite(const char *Cmd) {
     SendCommandNG(CMD_HF_FELICALITE_DUMP, NULL, 0);
     PacketResponseNG resp;
 
-    PrintAndLogEx(INFO, "Press " _GREEN_("<Enter>") " or pm3-button to abort dumping");
+    PrintAndLogEx(INFO, "Press " _GREEN_("pm3 button") " or " _GREEN_("<Enter>") " to abort dumping");
 
     uint8_t timeout = 0;
     while (WaitForResponseTimeout(CMD_ACK, &resp, 2000) == false) {
@@ -2185,14 +2192,15 @@ static int CmdHFFelicaCmdRaw(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",            CmdHelp,                          AlwaysAvailable, "This help"},
     {"-----------",     CmdHelp,                          AlwaysAvailable, "----------------------- " _CYAN_("General") " -----------------------"},
+    {"help",            CmdHelp,                          AlwaysAvailable, "This help"},
     {"list",            CmdHFFelicaList,                  AlwaysAvailable, "List ISO 18092/FeliCa history"},
-    {"reader",          CmdHFFelicaReader,                IfPm3Felica,     "Act like an ISO18092/FeliCa reader"},
+    {"-----------",     CmdHelp,                          AlwaysAvailable, "----------------------- " _CYAN_("Operations") " -----------------------"},
     {"info",            CmdHFFelicaInfo,                  IfPm3Felica,     "Tag information"},
-    {"sniff",           CmdHFFelicaSniff,                 IfPm3Felica,     "Sniff ISO 18092/FeliCa traffic"},
     {"raw",             CmdHFFelicaCmdRaw,                IfPm3Felica,     "Send raw hex data to tag"},
     {"rdbl",            CmdHFFelicaReadPlain,             IfPm3Felica,     "read block data from authentication-not-required Service."},
+    {"reader",          CmdHFFelicaReader,                IfPm3Felica,     "Act like an ISO18092/FeliCa reader"},
+    {"sniff",           CmdHFFelicaSniff,                 IfPm3Felica,     "Sniff ISO 18092/FeliCa traffic"},
     {"wrbl",            CmdHFFelicaWritePlain,            IfPm3Felica,     "write block data to an authentication-not-required Service."},
     {"-----------",     CmdHelp,                          AlwaysAvailable, "----------------------- " _CYAN_("FeliCa Standard") " -----------------------"},
     //{"dump",          CmdHFFelicaDump,                    IfPm3Felica,     "Wait for and try dumping FeliCa"},

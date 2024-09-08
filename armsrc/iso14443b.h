@@ -34,26 +34,25 @@
 # define AddCrc14B(data, len) compute_crc(CRC_14443_B, (data), (len), (data)+(len), (data)+(len)+1)
 #endif
 
+#ifndef AddCrc15
+#define AddCrc15(data, len) compute_crc(CRC_ICLASS, (data), (len), (data)+(len), (data)+(len)+1)
+#endif
+
 void iso14443b_setup(void);
-int iso14443b_apdu(uint8_t const *msg, size_t msg_len, bool send_chaining, void *rxdata, uint16_t rxmaxlen, uint8_t *res);
+int iso14443b_apdu(uint8_t const *msg, size_t msg_len, bool send_chaining, void *rxdata, uint16_t rxmaxlen, uint8_t *response_byte, uint16_t *responselen);
 
 int iso14443b_select_card(iso14b_card_select_t *card);
-int iso14443b_select_card_srx(iso14b_card_select_t *card);
 
-void SimulateIso14443bTag(uint8_t *pupi);
-void AcquireRawAdcSamplesIso14443b(uint32_t parameter);
-void ReadSTBlock(uint8_t blocknr);
+void SimulateIso14443bTag(const uint8_t *pupi);
+void read_14b_st_block(uint8_t blocknr);
 void SniffIso14443b(void);
-void SendRawCommand14443B(uint32_t, uint32_t, uint8_t, uint8_t[]);
-void SendRawCommand14443B_Ex(iso14b_raw_cmd_t *p);
+void SendRawCommand14443B(iso14b_raw_cmd_t *p);
 
 // States for 14B SIM command
-#define SIM_NOFIELD     0
+#define SIM_POWER_OFF   0
 #define SIM_IDLE        1
-#define SIM_HALTED      2
-#define SIM_SELECTING   3
-#define SIM_HALTING     4
-#define SIM_ACKNOWLEDGE 5
-#define SIM_WORK        6
+#define SIM_READY       2
+#define SIM_HALT        3
+#define SIM_ACTIVE      4
 
 #endif /* __ISO14443B_H */

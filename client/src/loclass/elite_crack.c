@@ -158,7 +158,7 @@ Definition 14. Define the rotate key function rk : (F 82 ) 8 × N → (F 82 ) 8 
 rk(x [0] . . . x [7] , 0) = x [0] . . . x [7]
 rk(x [0] . . . x [7] , n + 1) = rk(rl(x [0] ) . . . rl(x [7] ), n)
 **/
-static void rk(uint8_t *key, uint8_t n, uint8_t *outp_key) {
+static void rk(const uint8_t *key, uint8_t n, uint8_t *outp_key) {
     memcpy(outp_key, key, 8);
     while (n-- > 0) {
         outp_key[0] = rl(outp_key[0]);
@@ -365,7 +365,7 @@ static void *bf_thread(void *thread_arg) {
         // success
         if (memcmp(calculated_MAC, mac, 4) == 0) {
 
-            loclass_thread_ret_t *r = (loclass_thread_ret_t *)malloc(sizeof(loclass_thread_ret_t));
+            loclass_thread_ret_t *r = (loclass_thread_ret_t *)calloc(sizeof(loclass_thread_ret_t), sizeof(uint8_t));
 
             for (uint8_t i = 0 ; i < numbytes_to_recover; i++) {
                 r->values[i] = keytable[bytes_to_recover[i]] & 0xFF;
@@ -707,7 +707,7 @@ int calculateMasterKey(uint8_t first16bytes[], uint8_t kcus[]) {
     PrintAndLogEx(SUCCESS, "-----  " _CYAN_("High security custom key (Kcus)") " -----");
     PrintAndLogEx(SUCCESS, "Standard format  %s", sprint_hex(key64_stdformat, 8));
     PrintAndLogEx(SUCCESS, "iCLASS format    " _GREEN_("%s"), sprint_hex(key64, 8));
-    PrintAndLogEx(SUCCESS, "Key verified (" _GREEN_("ok") ")");
+    PrintAndLogEx(SUCCESS, "Key verified ( " _GREEN_("ok") " )");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
@@ -758,7 +758,7 @@ int bruteforceDump(uint8_t dump[], size_t dumpsize, uint16_t keytable[]) {
         first16bytes[i] = keytable[i] & 0xFF;
 
         if ((keytable[i] & LOCLASS_CRACKED) != LOCLASS_CRACKED) {
-            PrintAndLogEx(WARNING, "Warning: we are missing byte %d, custom key calculation will fail...", i);
+            PrintAndLogEx(WARNING, "Warning: we are missing byte " _RED_("%d") " , custom key calculation will fail...", i);
             return PM3_ESOFT;
         }
     }
@@ -849,7 +849,7 @@ static int _test_iclass_key_permutation(void) {
         return PM3_ESOFT;
     }
 
-    PrintAndLogEx(SUCCESS, "    Iclass key permutation (%s)", _GREEN_("ok"));
+    PrintAndLogEx(SUCCESS, "    Iclass key permutation ( %s )", _GREEN_("ok"));
     return PM3_SUCCESS;
 }
 
@@ -892,17 +892,17 @@ int testElite(bool slowtests) {
     hash2(k_cus, keytable);
     printarr_human_readable("---------------------- Hash2 ----------------------", keytable, sizeof(keytable));
     if (keytable[3] == 0xA1 && keytable[0x30] == 0xA3 && keytable[0x6F] == 0x95) {
-        PrintAndLogEx(SUCCESS, "    hash2 (%s)", _GREEN_("ok"));
+        PrintAndLogEx(SUCCESS, "    hash2 ( %s )", _GREEN_("ok"));
     }
 
     int res = PM3_SUCCESS;
     PrintAndLogEx(INFO, "Testing hash1...");
     res += _testHash1();
-    PrintAndLogEx((res == PM3_SUCCESS) ? SUCCESS : WARNING, "    hash1 (%s)", (res == PM3_SUCCESS) ? _GREEN_("ok") : _RED_("fail"));
+    PrintAndLogEx((res == PM3_SUCCESS) ? SUCCESS : WARNING, "    hash1 ( %s )", (res == PM3_SUCCESS) ? _GREEN_("ok") : _RED_("fail"));
 
     PrintAndLogEx(INFO, "Testing key diversification...");
     res += _test_iclass_key_permutation();
-    PrintAndLogEx((res == PM3_SUCCESS) ? SUCCESS : WARNING, "    key diversification (%s)", (res == PM3_SUCCESS) ? _GREEN_("ok") : _RED_("fail"));
+    PrintAndLogEx((res == PM3_SUCCESS) ? SUCCESS : WARNING, "    key diversification ( %s )", (res == PM3_SUCCESS) ? _GREEN_("ok") : _RED_("fail"));
 
     if (slowtests)
         res += _testBruteforce();

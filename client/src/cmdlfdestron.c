@@ -182,6 +182,7 @@ static int CmdDestronClone(const char *Cmd) {
 
     // EM4305
     if (em) {
+        PrintAndLogEx(WARNING, "Beware some EM4305 tags don't support FSK and datarate = RF/50, check your tag copy!");
         blocks[0] = EM4305_DESTRON_CONFIG_BLOCK;
         snprintf(cardtype, sizeof(cardtype), "EM4305/4469");
     }
@@ -230,14 +231,14 @@ static int CmdDestronSim(const char *Cmd) {
     CLIExecWithReturn(ctx, Cmd, argtable, true);
     CLIParserFree(ctx);
     PrintAndLogEx(INFO, " To be implemented, feel free to contribute!");
-    return PM3_SUCCESS;
+    return PM3_ENOTIMPL;
 }
 
 static command_t CommandTable[] = {
     {"help",   CmdHelp,          AlwaysAvailable, "This help"},
     {"demod",  CmdDestronDemod,  AlwaysAvailable, "demodulate an Destron tag from the GraphBuffer"},
     {"reader", CmdDestronReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",  CmdDestronClone,  IfPm3Lf,         "clone Destron tag to T55x7"},
+    {"clone",  CmdDestronClone,  IfPm3Lf,         "clone Destron tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",    CmdDestronSim,    IfPm3Lf,         "simulate Destron tag"},
     {NULL, NULL, NULL, NULL}
 };

@@ -43,10 +43,15 @@ static int CmdHelp(const char *Cmd);
 int demodPyramid(bool verbose) {
     (void) verbose; // unused so far
     //raw fsk demod no manchester decoding no start bit finding just get binary from wave
-    uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
-    size_t size = getFromGraphBuf(bits);
+    uint8_t *bits = calloc(MAX_GRAPH_TRACE_LEN, sizeof(uint8_t));
+    if (bits == NULL) {
+        PrintAndLogEx(FAILED, "failed to allocate memory");
+        return PM3_EMALLOC;
+    }
+    size_t size = getFromGraphBuffer(bits);
     if (size == 0) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid not enough samples");
+        free(bits);
         return PM3_ESOFT;
     }
     //get binary from fsk wave
@@ -65,6 +70,7 @@ int demodPyramid(bool verbose) {
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: size not correct: %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: error demoding fsk idx: %d", idx);
+        free(bits);
         return PM3_ESOFT;
     }
     setDemodBuff(bits, size, idx);
@@ -113,6 +119,7 @@ int demodPyramid(bool verbose) {
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: parity check failed - IDX: %d, hi3: %08X", idx, rawHi3);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: at parity check - tag size does not match Pyramid format, SIZE: %zu, IDX: %d, hi3: %08X", size, idx, rawHi3);
+        free(bits);
         return PM3_ESOFT;
     }
 
@@ -181,6 +188,7 @@ int demodPyramid(bool verbose) {
         printDemodBuff(0, false, false, false);
     }
 
+    free(bits);
     return PM3_SUCCESS;
 }
 
@@ -235,8 +243,8 @@ static int CmdPyramidClone(const char *Cmd) {
                   "clone a Farpointe/Pyramid tag to a T55x7, Q5/T5555 or EM4305/4469 tag.\n"
                   "The facility-code is 8-bit and the card number is 16-bit. Larger values are truncated.\n"
                   "Currently only works on 26bit",
-                  "lf pyramid clone --fc 123 --cn 11223\n"
-                  "lf pyramid clone --raw 0001010101010101010440013223921c\n"
+                  "lf pyramid clone --fc 123 --cn 11223       -> encode for T55x7 tag\n"
+                  "lf pyramid clone --raw 0001010101010101010440013223921c -> idem, raw mode\n"
                   "lf pyramid clone --fc 123 --cn 11223 --q5  -> encode for Q5/T5555 tag\n"
                   "lf pyramid clone --fc 123 --cn 11223 --em  -> encode for EM4305/4469\n"
                  );
@@ -327,7 +335,12 @@ static int CmdPyramidClone(const char *Cmd) {
     }
     // EM4305
     if (em) {
+        PrintAndLogEx(WARNING, "Beware some EM4305 tags don't support FSK and datarate = RF/50, check your tag copy!");
         blocks[0] = EM4305_PYRAMID_CONFIG_BLOCK;
+        // invert FSK data
+        for (uint8_t i = 1; i < ARRAYLEN(blocks) ; i++) {
+            blocks[i] = blocks[i] ^ 0xFFFFFFFF;
+        }
         snprintf(cardtype, sizeof(cardtype), "EM4305/4469");
     }
 
@@ -355,7 +368,7 @@ static int CmdPyramidSim(const char *Cmd) {
                   "The facility-code is 8-bit and the card number is 16-bit. Larger values are truncated.\n"
                   "Currently work only on 26bit",
                   "lf pyramid sim --fc 123 --cn 1337\n"
-                  "lf pyramid clone --raw 0001010101010101010440013223921c"
+                  "lf pyramid sim --raw 0001010101010101010440013223921c"
                  );
 
     void *argtable[] = {
@@ -372,7 +385,7 @@ static int CmdPyramidSim(const char *Cmd) {
     int raw_len = 0;
     // skip first block,  4*4 = 16 bytes left
     uint8_t raw[16] = {0};
-    int res = CLIParamHexToBuf(arg_get_str(ctx, 5), raw, sizeof raw, &raw_len);
+    int res = CLIParamHexToBuf(arg_get_str(ctx, 3), raw, sizeof raw, &raw_len);
     if (res) {
         CLIParserFree(ctx);
         return PM3_EINVARG;
@@ -431,7 +444,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,          AlwaysAvailable, "this help"},
     {"demod",   CmdPyramidDemod,  AlwaysAvailable, "demodulate a Pyramid FSK tag from the GraphBuffer"},
     {"reader",  CmdPyramidReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",   CmdPyramidClone,  IfPm3Lf,         "clone pyramid tag to T55x7 or Q5/T5555"},
+    {"clone",   CmdPyramidClone,  IfPm3Lf,         "clone pyramid tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdPyramidSim,    IfPm3Lf,         "simulate pyramid tag"},
     {NULL, NULL, NULL, NULL}
 };
@@ -502,4 +515,3 @@ int detectPyramid(uint8_t *dest, size_t *size, int *waveStartIdx) {
 
     return (int)startIdx;
 }
-

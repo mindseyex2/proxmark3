@@ -66,7 +66,7 @@ For commands being sent to the Proxmark3:
 * `data`:   variable length payload
 * `crc`:    either an actual CRC (crc14a) or a Magic placeholder (`a3`)
 
-For responses from the Proxmark:
+For responses from the Proxmark3:
 
     uint32_t magic;
     uint16_t length : 15;
@@ -82,11 +82,11 @@ For responses from the Proxmark:
 * `status`: a field to send back the status of the command execution
 * `cmd`:    as previously, on 16b as it's enough
 * `data`:   variable length payload
-* `crc`:    either an actual CRC (crc14a) or a Magic placeholder (`a3`)
+* `crc`:    either an actual CRC (crc14a) or a Magic placeholder (`b3`)
 
 We used to send an anonymous ACK, now we're replying with the corresponding command name and a status.
-CRC is optional and on reception, the magic `a3` is accepted as placeholder. If it's different then it's checked as a CRC.
-By default CRC is user over USART and is disabled over USB, on both directions.
+CRC is optional and on reception, the magic `a3`/`b3` is accepted as placeholder. If it's different then it's checked as a CRC.
+By default CRC is used over USART and is disabled over USB, on both directions.
 
 Internal structures used to handle these packets are:
 * PacketCommandNGPreamble
@@ -332,9 +332,11 @@ else we get errors about partial packet reception
     FTDI 460800 hw status                   ⇒ we need 30ms
     BT   115200 hf mf fchk --1k -f file.dic ⇒ we need 140ms
 
-    # define UART_FPC_CLIENT_RX_TIMEOUT_MS  170
-    # define UART_USB_CLIENT_RX_TIMEOUT_MS  20
-    # define UART_TCP_CLIENT_RX_TIMEOUT_MS  300
+    # define UART_FPC_CLIENT_RX_TIMEOUT_MS        200
+    # define UART_USB_CLIENT_RX_TIMEOUT_MS        20
+    # define UART_NET_CLIENT_RX_TIMEOUT_MS        500
+    # define UART_TCP_LOCAL_CLIENT_RX_TIMEOUT_MS  40
+    # define UART_UDP_LOCAL_CLIENT_RX_TIMEOUT_MS  20
 
 This goes to `uart_posix.c` `timeval` struct
 and `uart_win32.c` `serial_port_windows` struct
@@ -342,7 +344,7 @@ and `uart_win32.c` `serial_port_windows` struct
 It starts at UART_FPC_CLIENT_RX_TIMEOUT_MS and once we detect we're working over USB
 it's reduced to UART_USB_CLIENT_RX_TIMEOUT_MS.
 
-
+The timeout is configurable by the `hw timeout` command (since v4.17140).
 
 Add automatically some communication delay in the `WaitForResponseTimeout` & `dl_it` timeouts.  
 Only when using FPC, timeout = 2* empirically measured delay (FTDI cable).  

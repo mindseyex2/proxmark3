@@ -27,14 +27,14 @@
 #include "BigBuf.h"
 #include "spiffs.h"
 #include "appmain.h" // tear
+#include "bruteforce.h"
 
 // Sam7s has several timers, we will use the source TIMER_CLOCK1 (aka AT91C_TC_CLKS_TIMER_DIV1_CLOCK)
 // TIMER_CLOCK1 = MCK/2, MCK is running at 48 MHz, Timer is running at 48/2 = 24 MHz
 // EM4x50 units (T0) have duration of 8 microseconds (us), which is 1/125000 per second (carrier)
 // T0 = TIMER_CLOCK1 / 125000 = 192
-#ifndef T0
+
 #define T0                                  192
-#endif
 
 // conversions (carrier frequency 125 kHz):
 // 1 us = 1.5 ticks
@@ -632,12 +632,25 @@ static int login(uint32_t password) {
     return PM3_EFAILED;
 }
 
-// searching for password in given range
-static bool brute(uint32_t start, uint32_t stop, uint32_t *pwd) {
+// searching for password using chosen bruteforce algorithm
+static bool brute(const em4x50_data_t *etd, uint32_t *pwd) {
+
+    generator_context_t ctx;
     bool pwd_found = false;
+    int generator_ret = 0;
     int cnt = 0;
 
-    for (*pwd = start; *pwd <= stop; (*pwd)++) {
+    bf_generator_init(&ctx, etd->bruteforce_mode, BF_KEY_SIZE_32);
+
+    if (etd->bruteforce_mode == BF_MODE_CHARSET) {
+        bf_generator_set_charset(&ctx, etd->bruteforce_charset);
+    } else if (etd->bruteforce_mode == BF_MODE_RANGE) {
+        ctx.range_low = etd->password1;
+        ctx.range_high = etd->password2;
+    }
+
+    while ((generator_ret = bf_generate(&ctx)) == BF_GENERATOR_NEXT) {
+        *pwd = bf_get_key32(&ctx);
 
         WDT_HIT();
 
@@ -684,7 +697,7 @@ static bool brute(uint32_t start, uint32_t stop, uint32_t *pwd) {
 }
 
 // login into EM4x50
-void em4x50_login(uint32_t *password, bool ledcontrol) {
+void em4x50_login(const uint32_t *password, bool ledcontrol) {
     em4x50_setup_read();
 
     int status = PM3_EFAILED;
@@ -702,8 +715,8 @@ void em4x50_login(uint32_t *password, bool ledcontrol) {
     reply_ng(CMD_LF_EM4X50_LOGIN, status, NULL, 0);
 }
 
-// envoke password search
-void em4x50_brute(em4x50_data_t *etd, bool ledcontrol) {
+// invoke password search
+void em4x50_brute(const em4x50_data_t *etd, bool ledcontrol) {
     em4x50_setup_read();
 
     bool bsuccess = false;
@@ -714,7 +727,7 @@ void em4x50_brute(em4x50_data_t *etd, bool ledcontrol) {
             LED_C_OFF();
             LED_D_ON();
         }
-        bsuccess = brute(etd->password1, etd->password2, &pwd);
+        bsuccess = brute(etd, &pwd);
     }
 
     if (ledcontrol) LEDsoff();
@@ -723,7 +736,7 @@ void em4x50_brute(em4x50_data_t *etd, bool ledcontrol) {
 }
 
 // check passwords from dictionary content in flash memory
-void em4x50_chk(uint8_t *filename, bool ledcontrol) {
+void em4x50_chk(const char *filename, bool ledcontrol) {
     int status = PM3_EFAILED;
     uint32_t pwd = 0x0;
 
@@ -733,11 +746,11 @@ void em4x50_chk(uint8_t *filename, bool ledcontrol) {
 
     int changed = rdv40_spiffs_lazy_mount();
     uint16_t pwd_count = 0;
-    uint32_t size = size_in_spiffs((char *)filename);
+    uint32_t size = size_in_spiffs(filename);
     pwd_count = size / 4;
     uint8_t *pwds = BigBuf_malloc(size);
 
-    rdv40_spiffs_read_as_filetype((char *)filename, pwds, size, RDV40_SPIFFS_SAFETY_SAFE);
+    rdv40_spiffs_read_as_filetype(filename, pwds, size, RDV40_SPIFFS_SAFETY_SAFE);
 
     if (changed)
         rdv40_spiffs_lazy_unmount();
@@ -863,7 +876,7 @@ static int selective_read(uint32_t addresses, uint32_t *words) {
 }
 
 // reads by using "selective read mode" -> bidirectional communication
-void em4x50_read(em4x50_data_t *etd, bool ledcontrol) {
+void em4x50_read(const em4x50_data_t *etd, bool ledcontrol) {
     int status = PM3_EFAILED;
     uint32_t words[EM4X50_NO_WORDS] = {0x0};
 
@@ -896,7 +909,7 @@ void em4x50_read(em4x50_data_t *etd, bool ledcontrol) {
 }
 
 // collects as much information as possible via selective read mode
-void em4x50_info(em4x50_data_t *etd, bool ledcontrol) {
+void em4x50_info(const em4x50_data_t *etd, bool ledcontrol) {
     int status = PM3_EFAILED;
     uint32_t words[EM4X50_NO_WORDS] = {0x0};
 
@@ -1043,7 +1056,7 @@ static int write_password(uint32_t password, uint32_t new_password) {
 // write operation process for EM4x50 tag,
 // single word is written to given address, verified by selective read operation
 // wrong password -> return with PM3_EFAILED
-void em4x50_write(em4x50_data_t *etd, bool ledcontrol) {
+void em4x50_write(const em4x50_data_t *etd, bool ledcontrol) {
     int status = PM3_EFAILED;
     uint32_t words[EM4X50_NO_WORDS] = {0x0};
 
@@ -1103,7 +1116,7 @@ void em4x50_write(em4x50_data_t *etd, bool ledcontrol) {
 }
 
 // simple change of password
-void em4x50_writepwd(em4x50_data_t *etd, bool ledcontrol) {
+void em4x50_writepwd(const em4x50_data_t *etd, bool ledcontrol) {
     int status = PM3_EFAILED;
 
     em4x50_setup_read();
@@ -1241,7 +1254,11 @@ static int em4x50_sim_read_bit(void) {
     int cycles = 0;
     int timeout = EM4X50_T_SIMULATION_TIMEOUT_READ;
 
-    while (cycles < EM4X50_T_TAG_FULL_PERIOD) {
+    // wait 16 cycles to make sure there is no field when reading a "0" bit
+    uint32_t waitval = GetTicks();
+    while (GetTicks() - waitval < EM4X50_T_TAG_QUARTER_PERIOD * CYCLES2TICKS);
+
+    while (cycles < EM4X50_T_TAG_THREE_QUARTER_PERIOD) {
 
         // wait until reader field disappears
         while ((timeout--) && !(AT91C_BASE_PIOA->PIO_PDSR & GPIO_SSC_CLK));
@@ -1348,7 +1365,7 @@ static bool em4x50_sim_read_word(uint32_t *word) {
 }
 
 // check if reader requests receive mode (rm) by sending two zeros
-static int check_rm_request(uint32_t *tag, bool ledcontrol) {
+static int check_rm_request(const uint32_t *tag, bool ledcontrol) {
 
     // look for first zero
     int bit = em4x50_sim_read_bit();
@@ -1377,7 +1394,7 @@ static int check_rm_request(uint32_t *tag, bool ledcontrol) {
 }
 
 // send single listen window in simulation mode
-static int em4x50_sim_send_listen_window(uint32_t *tag, bool ledcontrol) {
+static int em4x50_sim_send_listen_window(const uint32_t *tag, bool ledcontrol) {
 
     SHORT_COIL();
     wait_cycles(EM4X50_T_TAG_HALF_PERIOD);
@@ -1450,7 +1467,7 @@ static void em4x50_sim_send_nak(void) {
 }
 
 // standard read mode process (simulation mode)
-static int em4x50_sim_handle_standard_read_command(uint32_t *tag, bool ledcontrol) {
+static int em4x50_sim_handle_standard_read_command(const uint32_t *tag, bool ledcontrol) {
 
     // extract control data
     int fwr = reflect32(tag[EM4X50_CONTROL]) & 0xFF;        // first word read
@@ -1490,7 +1507,7 @@ static int em4x50_sim_handle_standard_read_command(uint32_t *tag, bool ledcontro
 }
 
 // selective read mode process (simulation mode)
-static int em4x50_sim_handle_selective_read_command(uint32_t *tag, bool ledcontrol) {
+static int em4x50_sim_handle_selective_read_command(const uint32_t *tag, bool ledcontrol) {
 
     // read password
     uint32_t address = 0;
@@ -1545,7 +1562,7 @@ static int em4x50_sim_handle_selective_read_command(uint32_t *tag, bool ledcontr
 }
 
 // login process (simulation mode)
-static int em4x50_sim_handle_login_command(uint32_t *tag, bool ledcontrol) {
+static int em4x50_sim_handle_login_command(const uint32_t *tag, bool ledcontrol) {
 
     // read password
     uint32_t password = 0;
@@ -1571,7 +1588,7 @@ static int em4x50_sim_handle_login_command(uint32_t *tag, bool ledcontrol) {
 }
 
 // reset process (simulation mode)
-static int em4x50_sim_handle_reset_command(uint32_t *tag, bool ledcontrol) {
+static int em4x50_sim_handle_reset_command(const uint32_t *tag, bool ledcontrol) {
 
     // processing pause time (corresponds to a "1" bit)
     em4x50_sim_send_bit(1);
@@ -1796,7 +1813,7 @@ void em4x50_handle_commands(int *command, uint32_t *tag, bool ledcontrol) {
 // simulate uploaded data in emulator memory
 // LED C -> reader command has been detected
 // LED D -> operations that require authentication are possible
-void em4x50_sim(uint32_t *password, bool ledcontrol) {
+void em4x50_sim(const uint32_t *password, bool ledcontrol) {
 
     int command = PM3_ENODATA;
 

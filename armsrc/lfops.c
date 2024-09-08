@@ -44,7 +44,7 @@
 Notes about EM4xxx timings.
 
 The timing values differs between cards,  we got EM410x,  EM43x5, EM445x  etc.
-We are trying to unify and enable the Proxmark to easily detect and select correct timings automatic.
+We are trying to unify and enable the Proxmark3 to easily detect and select correct timings automatic.
 The measures from datasheets doesn't always match correct the hardware features of RDV4 antenans and we still wanted to let other devices with other custom antennas
 still benefit from this repo.  This is why its configurable and we use to set these dynamic settings in device external flash memory.
 
@@ -208,7 +208,7 @@ static uint32_t GetT55xxClockBit(uint8_t clock) {
 
 void printT55xxConfig(void) {
 
-#define PRN_NA   sprintf(s  + strlen(s), _RED_("N/A") " | ");
+#define PRN_NA   sprintf(s  + strlen(s), _RED_("n/a") " | ");
 
     DbpString(_CYAN_("LF T55XX config"));
     Dbprintf("           [r]               [a]   [b]   [c]   [d]   [e]   [f]   [g]");
@@ -287,7 +287,7 @@ void printT55xxConfig(void) {
     DbpString("");
 }
 
-void setT55xxConfig(uint8_t arg0, t55xx_configurations_t *c) {
+void setT55xxConfig(uint8_t arg0, const t55xx_configurations_t *c) {
     for (uint8_t i = 0; i < 4; i++) {
         if (c->m[i].start_gap != 0)
             T55xx_Timing.m[i].start_gap = c->m[i].start_gap;
@@ -391,6 +391,8 @@ void loadT55xxConfig(void) {
     if (isok == T55XX_CONFIG_LEN) {
         if (g_dbglevel > 1) DbpString("T55XX Config load success");
     }
+
+    BigBuf_free();
 #endif
 }
 
@@ -424,7 +426,10 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint16_t period_0, uint
     // start timer
     StartTicks();
 
-    WaitMS(100);
+    if (!prev_keep) {
+        WaitMS(100);
+    }
+
     // clear read buffer
     BigBuf_Clear_keep_EM();
 
@@ -1009,7 +1014,7 @@ void CmdHIDsimTAG(uint32_t hi2, uint32_t hi, uint32_t lo, uint8_t longFMT, bool 
 // prepare a waveform pattern in the buffer based on the ID given then
 // simulate a FSK tag until the button is pressed
 // arg1 contains fcHigh and fcLow, arg2 contains STT marker and clock
-void CmdFSKsimTAGEx(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk, uint16_t bitslen, uint8_t *bits, bool ledcontrol, int numcycles) {
+void CmdFSKsimTAGEx(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk, uint16_t bitslen, const uint8_t *bits, bool ledcontrol, int numcycles) {
 
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
 
@@ -1045,7 +1050,7 @@ void CmdFSKsimTAGEx(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t cl
 // prepare a waveform pattern in the buffer based on the ID given then
 // simulate a FSK tag until the button is pressed
 // arg1 contains fcHigh and fcLow, arg2 contains STT marker and clock
-void CmdFSKsimTAG(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk, uint16_t bitslen, uint8_t *bits, bool ledcontrol) {
+void CmdFSKsimTAG(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk, uint16_t bitslen, const uint8_t *bits, bool ledcontrol) {
     CmdFSKsimTAGEx(fchigh, fclow, separator, clk, bitslen, bits, ledcontrol, -1);
     reply_ng(CMD_LF_FSK_SIMULATE, PM3_EOPABORTED, NULL, 0);
 }
@@ -1866,9 +1871,9 @@ void T55xxResetRead(uint8_t flags, bool ledcontrol) {
     if (ledcontrol) LED_A_OFF();
 }
 
-void T55xxDangerousRawTest(uint8_t *data, bool ledcontrol) {
+void T55xxDangerousRawTest(const uint8_t *data, bool ledcontrol) {
     // supports only default downlink mode
-    t55xx_test_block_t *c = (t55xx_test_block_t *)data;
+    const t55xx_test_block_t *c = (const t55xx_test_block_t *)data;
 
     uint8_t start_wait = 4;
     uint8_t bs[128 / 8];
@@ -2225,24 +2230,54 @@ void T55xxWakeUp(uint32_t pwd, uint8_t flags, bool ledcontrol) {
 
 /*-------------- Cloning routines -----------*/
 static void WriteT55xx(const uint32_t *blockdata, uint8_t startblock, uint8_t numblocks, bool ledcontrol) {
-    t55xx_write_block_t cmd;
-    cmd.pwd     = 0;
-    cmd.flags   = 0;
 
-    for (uint8_t i = numblocks + startblock; i > startblock; i--) {
-        cmd.data    = blockdata[i - 1];
-        cmd.blockno = i - 1;
+    // Sanity checks
+    if (blockdata == NULL || numblocks == 0) {
+        reply_ng(CMD_LF_T55XX_WRITEBL, PM3_EINVARG, NULL, 0);
+        return;
+    }
+
+    t55xx_write_block_t cmd = {
+        .pwd = 0,
+        .flags = 0
+    };
+
+    // write in reverse order since we don't want to set
+    // a password enabled configuration first....
+    while (numblocks--) {
+
+        // zero based index
+        cmd.data = blockdata[numblocks];
+        cmd.blockno = startblock + numblocks;
+
+        // since this fct sends a NG packet every time,  this loop will send I number of NG
         T55xxWriteBlock((uint8_t *)&cmd, ledcontrol);
     }
 }
-/* disabled until verified.
-static void WriteEM4x05(uint32_t *blockdata, uint8_t startblock, uint8_t numblocks) {
+
+static void WriteEM4x05(uint32_t *blockdata, uint8_t startblock, uint8_t numblocks, bool ledcontrol) {
+    if (g_dbglevel == DBG_DEBUG) {
+        Dbprintf("# | data ( EM4x05 )");
+        Dbprintf("--+----------------");
+    }
+
+    for (uint8_t i = startblock; i < (uint8_t)(startblock + numblocks); i++) {
+        if (i > 4) {
+            blockdata[i - startblock] = reflect(blockdata[i - startblock], 32);
+        }
+        if (g_dbglevel == DBG_DEBUG) {
+            Dbprintf("%i | %08x", i, blockdata[i - startblock]);
+        }
+    }
+
+    if (g_dbglevel == DBG_DEBUG) {
+        Dbprintf("--+----------------");
+    }
+
     for (uint8_t i = numblocks + startblock; i > startblock; i--) {
-        EM4xWriteWord(i - 1, blockdata[i - 1], 0, false);
+        EM4xWriteWord(i - 1, blockdata[i - 1 - startblock], 0, 0, ledcontrol);
     }
 }
-*/
-
 
 // Copy HID id to card and setup block 0 config
 void CopyHIDtoT55x7(uint32_t hi2, uint32_t hi, uint32_t lo, uint8_t longFMT, bool q5, bool em, bool ledcontrol) {
@@ -2286,22 +2321,16 @@ void CopyHIDtoT55x7(uint32_t hi2, uint32_t hi, uint32_t lo, uint8_t longFMT, boo
     if (q5) {
         data[0] = T5555_SET_BITRATE(50) | T5555_MODULATION_FSK2 | T5555_INVERT_OUTPUT | last_block << T5555_MAXBLOCK_SHIFT;
     } else if (em) {
-        data[0] = (EM4x05_SET_BITRATE(50) | EM4x05_MODULATION_FSK2 | EM4x05_INVERT | EM4x05_SET_NUM_BLOCKS(last_block));
+        data[0] = (EM4x05_SET_BITRATE(50) | EM4x05_MODULATION_FSK2 | EM4x05_SET_NUM_BLOCKS(last_block));
+        // EM4x05_INVERT not available on EM4305, so let's invert manually
+        for (uint8_t i = 1; i <= last_block ; i++) {
+            data[i] = data[i] ^ 0xFFFFFFFF;
+        }
     }
 
     if (ledcontrol) LED_D_ON();
     if (em) {
-        Dbprintf("Clone HID Prox to EM4x05 is untested and disabled until verified");
-        if (g_dbglevel == DBG_DEBUG) {
-            Dbprintf("# | data ( EM4x05 )");
-            Dbprintf("--+----------------");
-            Dbprintf("0 | ", data[0]);
-            Dbprintf("1 | ", data[1]);
-            Dbprintf("2 | ", data[2]);
-            Dbprintf("3 | ", data[3]);
-            Dbprintf("--+----------------");
-        }
-        //WriteEM4x05(data, 0, last_block + 1);
+        WriteEM4x05(data, 4, last_block + 1, ledcontrol);
     } else {
         WriteT55xx(data, 0, last_block + 1, ledcontrol);
     }
@@ -2310,7 +2339,7 @@ void CopyHIDtoT55x7(uint32_t hi2, uint32_t hi, uint32_t lo, uint8_t longFMT, boo
 }
 
 // clone viking tag to T55xx
-void CopyVikingtoT55xx(uint8_t *blocks, bool q5, bool em, bool ledcontrol) {
+void CopyVikingtoT55xx(const uint8_t *blocks, bool q5, bool em, bool ledcontrol) {
 
     uint32_t data[] = {T55x7_BITRATE_RF_32 | T55x7_MODULATION_MANCHESTER | (2 << T55x7_MAXBLOCK_SHIFT), 0, 0};
     if (q5) {
@@ -2324,8 +2353,7 @@ void CopyVikingtoT55xx(uint8_t *blocks, bool q5, bool em, bool ledcontrol) {
 
     // Program the data blocks for supplied ID and the block 0 config
     if (em) {
-        Dbprintf("Clone Viking to EM4x05 is untested and disabled until verified");
-        //WriteEM4x05(data, 0, 3);
+        WriteEM4x05(data, 4, 3, ledcontrol);
     } else {
         WriteT55xx(data, 0, 3, ledcontrol);
     }
@@ -2333,7 +2361,7 @@ void CopyVikingtoT55xx(uint8_t *blocks, bool q5, bool em, bool ledcontrol) {
     reply_ng(CMD_LF_VIKING_CLONE, PM3_SUCCESS, NULL, 0);
 }
 
-int copy_em410x_to_t55xx(uint8_t card, uint8_t clock, uint32_t id_hi, uint32_t id_lo, bool ledcontrol) {
+int copy_em410x_to_t55xx(uint8_t card, uint8_t clock, uint32_t id_hi, uint32_t id_lo, bool add_electra, bool ledcontrol) {
 
 // Define 9bit header for EM410x tags
 #define EM410X_HEADER    0x1FF
@@ -2411,19 +2439,44 @@ int copy_em410x_to_t55xx(uint8_t card, uint8_t clock, uint32_t id_hi, uint32_t i
     clock = (clock == 0) ? 64 : clock;
     Dbprintf("Clock rate: %d", clock);
 
-    if (card == 1) { // T55x7
-        data[0] = clockbits | T55x7_MODULATION_MANCHESTER | (2 << T55x7_MAXBLOCK_SHIFT);
-    } else { // T5555 (Q5)
-        data[0] = T5555_SET_BITRATE(clock) | T5555_MODULATION_MANCHESTER | (2 << T5555_MAXBLOCK_SHIFT);
+    uint32_t electra[] = { 0x7E1EAAAA, 0xAAAAAAAA };
+    uint8_t blocks = 2;
+    if (add_electra) {
+        blocks = 4;
     }
 
-    WriteT55xx(data, 0, 3, ledcontrol);
+    if (card == 1) { // T55x7
+        data[0] = clockbits | T55x7_MODULATION_MANCHESTER | (blocks << T55x7_MAXBLOCK_SHIFT);
+    } else if (card == 2) { // EM4x05
+        data[0] = (EM4x05_SET_BITRATE(clock) | EM4x05_MODULATION_MANCHESTER | EM4x05_SET_NUM_BLOCKS(blocks));
+    } else { // T5555 (Q5)
+        data[0] = T5555_SET_BITRATE(clock) | T5555_MODULATION_MANCHESTER | (blocks << T5555_MAXBLOCK_SHIFT);
+    }
+
+    if (card == 2) {
+        WriteEM4x05(data, 4, 3, ledcontrol);
+        if (add_electra) {
+            WriteEM4x05(electra, 7, 2, ledcontrol);
+        }
+    } else {
+        WriteT55xx(data, 0, 3, ledcontrol);
+        if (add_electra) {
+            WriteT55xx(electra, 3, 2, ledcontrol);
+        }
+    }
 
     if (ledcontrol) LEDsoff();
-    Dbprintf("Tag %s written with 0x%08x%08x\n",
-             card ? "T55x7" : "T5555",
+
+    Dbprintf("Tag %s written with 0x%08x%08x",
+             card == 0 ? "T5555" : (card == 1 ? "T55x7" : "EM4x05"),
              (uint32_t)(id >> 32),
-             (uint32_t)id);
+             (uint32_t)id
+            );
+
+    if (add_electra) {
+        Dbprintf("Electra 0x%08x%08x\n", electra[0], electra[1]);
+    }
+
     return PM3_SUCCESS;
 }
 

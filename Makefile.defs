@@ -21,29 +21,39 @@ endif
 # been here
 DEFSBEENHERE = true
 
+# USER not defined on some platforms like Archlinux
+USER ?= $(shell id -u -n)
+
 CP = cp -a
 GZIP = gzip
 MKDIR = mkdir -p
 RM = rm -f
 RMDIR = rm -rf
-# rmdir only if dir is empty, tolerate failure
-RMDIR_SOFT = -rmdir
+# rmdir only if dir is empty, you must add "-" when using it to tolerate failure
+RMDIR_SOFT = rmdir
 MV = mv
 TOUCH = touch
 FALSE = false
 TAR = tar
 TARFLAGS ?= -v --ignore-failed-read -r
 TARFLAGS += -C .. -f
-CROSS  ?= arm-none-eabi-
-CC = gcc
-CXX = g++
-LD = g++
+CROSS ?= arm-none-eabi-
+CC ?= gcc
+CXX ?= g++
 SH = sh
 BASH = bash
 PERL = perl
 SWIG = swig
 CC_VERSION = $(shell $(CC) -dumpversion 2>/dev/null|sed 's/\..*//')
 CC_VERSION := $(or $(strip $(CC_VERSION)),0)
+
+ECHO = echo
+SUDO = sudo
+USERMOD = usermod -aG
+ADDUSER = adduser
+GETENT_BL = getent group bluetooth
+
+
 
 PATHSEP=/
 PREFIX ?=              /usr/local
@@ -53,6 +63,7 @@ INSTALLSHARERELPATH ?= share/proxmark3
 INSTALLFWRELPATH ?=    share/proxmark3/firmware
 INSTALLTOOLSRELPATH ?= share/proxmark3/tools
 INSTALLDOCSRELPATH ?=  share/doc/proxmark3
+export INSTALLSUDO
 
 platform = $(shell uname)
 DETECTED_OS=$(platform)
@@ -64,7 +75,15 @@ else
 endif
 
 ifeq ($(platform),Darwin)
-  USE_BREW ?= 1
+    ifeq ($(shell uname -p),arm64)
+        # The platform is iOS
+        USE_BREW ?= 0
+        # iOS refuses to compile unless this is set
+        export IPHONEOS_DEPLOYMENT_TARGET=11.0
+    else
+        # M* macOS devices return arm
+        USE_BREW ?= 1
+    endif
   USE_MACPORTS ?= 0
   AR= /usr/bin/ar rcs
   RANLIB= /usr/bin/ranlib
@@ -74,9 +93,13 @@ else
 endif
 
 ifeq ($(USE_BREW),1)
-  BREW_PREFIX = $(shell brew --prefix 2>/dev/null)
-  ifeq ($(strip $(BREW_PREFIX)),)
-    USE_BREW = 0
+  ifneq ($(strip $(HOMEBREW_PREFIX)),)
+    BREW_PREFIX = $(HOMEBREW_PREFIX)
+  else
+    BREW_PREFIX = $(shell brew --prefix 2>/dev/null)
+    ifeq ($(strip $(BREW_PREFIX)),)
+      USE_BREW = 0
+    endif
   endif
 endif
 
@@ -117,6 +140,10 @@ ifeq ($(shell expr $(CC_VERSION) \>= 10), 1)
   endif
 endif
 ifeq ($(platform),Darwin)
+  ifeq ($(shell uname -p),arm64)
+    # iOS will refuse to compile without the minimum target of iOS 11.0
+    DEFCFLAGS += -mios-version-min=11.0
+  endif
   # their readline has strict-prototype issues
   DEFCFLAGS += -Wno-strict-prototypes
   # some warnings about braced initializers on structs we want to ignore
@@ -143,6 +170,8 @@ GCCEXTRACFLAGS += -Wold-style-declaration -Wno-error=old-style-declaration
 GCCEXTRACFLAGS += -Woverride-init
 GCCEXTRACFLAGS += -Wshift-negative-value
 GCCEXTRACFLAGS += -Wunused-but-set-parameter -Wno-error=unused-but-set-parameter
+# enable gcc static analysis
+GCCEXTRACFLAGS += -fanalyzer
 ifeq ($(GCCEXTRA),1)
   DEFCFLAGS += $(GCCEXTRACFLAGS) $(EXTRACFLAGS)
 endif

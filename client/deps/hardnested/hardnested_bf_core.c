@@ -74,6 +74,8 @@ THE SOFTWARE.
 #define MAX_BITSLICES 128
 #elif defined(__SSE2__)
 #define MAX_BITSLICES 128
+#elif defined(__ARM_NEON) && !defined(NOSIMD_BUILD)
+#define MAX_BITSLICES 128
 #else // MMX or SSE or NOSIMD
 #define MAX_BITSLICES 64
 #endif
@@ -118,6 +120,9 @@ typedef union {
 #elif defined (__MMX__)
 #define BITSLICE_TEST_NONCES bitslice_test_nonces_MMX
 #define CRACK_STATES_BITSLICED crack_states_bitsliced_MMX
+#elif defined (__ARM_NEON) && !defined(NOSIMD_BUILD)
+#define BITSLICE_TEST_NONCES bitslice_test_nonces_NEON
+#define CRACK_STATES_BITSLICED crack_states_bitsliced_NEON
 #else
 #define BITSLICE_TEST_NONCES bitslice_test_nonces_NOSIMD
 #define CRACK_STATES_BITSLICED crack_states_bitsliced_NOSIMD
@@ -130,6 +135,7 @@ crack_states_bitsliced_t crack_states_bitsliced_AVX2;
 crack_states_bitsliced_t crack_states_bitsliced_AVX;
 crack_states_bitsliced_t crack_states_bitsliced_SSE2;
 crack_states_bitsliced_t crack_states_bitsliced_MMX;
+crack_states_bitsliced_t crack_states_bitsliced_NEON;
 crack_states_bitsliced_t crack_states_bitsliced_NOSIMD;
 crack_states_bitsliced_t crack_states_bitsliced_dispatch;
 
@@ -139,6 +145,7 @@ bitslice_test_nonces_t bitslice_test_nonces_AVX2;
 bitslice_test_nonces_t bitslice_test_nonces_AVX;
 bitslice_test_nonces_t bitslice_test_nonces_SSE2;
 bitslice_test_nonces_t bitslice_test_nonces_MMX;
+bitslice_test_nonces_t bitslice_test_nonces_NEON;
 bitslice_test_nonces_t bitslice_test_nonces_NOSIMD;
 bitslice_test_nonces_t bitslice_test_nonces_dispatch;
 
@@ -156,7 +163,8 @@ static void *malloc_bitslice(size_t x) {
 }
 #define free_bitslice(x) free(x)
 #else
-#define malloc_bitslice(x) memalign(MAX_BITSLICES / 8, (x))
+//#define malloc_bitslice(x) memalign(MAX_BITSLICES / 8, (x))
+#define malloc_bitslice(x) __builtin_assume_aligned(memalign(MAX_BITSLICES / 8, (x)), MAX_BITSLICES / 8);
 #define free_bitslice(x) free(x)
 #endif
 
@@ -363,7 +371,7 @@ uint64_t CRACK_STATES_BITSLICED(uint32_t cuid, uint8_t *best_first_bytes, statel
             for (uint32_t tests = 0; tests < nonces_to_bruteforce; ++tests) {
                 // common bits with preceding test nonce
                 uint32_t common_bits = next_common_bits; //tests ? trailing_zeros(bf_test_nonce_2nd_byte[tests] ^ bf_test_nonce_2nd_byte[tests-1]) : 0;
-                next_common_bits = tests < nonces_to_bruteforce - 1 ? trailing_zeros(bf_test_nonce_2nd_byte[tests] ^ bf_test_nonce_2nd_byte[tests + 1]) : 0;
+                next_common_bits = (tests < nonces_to_bruteforce - 1) ? trailing_zeros(bf_test_nonce_2nd_byte[tests] ^ bf_test_nonce_2nd_byte[tests + 1]) : 0;
                 uint32_t parity_bit_idx = 1;                        // start checking with the parity of second nonce byte
                 bitslice_value_t fb_bits = fbb[common_bits];        // start with precomputed feedback bits from previous nonce
                 bitslice_value_t ks_bits = ksb[common_bits];        // dito for first keystream bits
@@ -522,7 +530,6 @@ stop_tests:
             bucket_states_tested += bucket_size[block_idx];
             // prepare to set new states
             state_p = &states[KEYSTREAM_SIZE];
-            continue;
         }
     }
 out:
@@ -543,7 +550,7 @@ out:
 
 
 
-#ifndef __MMX__
+#ifdef NOSIMD_BUILD
 
 // pointers to functions:
 crack_states_bitsliced_t *crack_states_bitsliced_function_p = &crack_states_bitsliced_dispatch;
@@ -561,7 +568,7 @@ void SetSIMDInstr(SIMDExecInstr instr) {
 static SIMDExecInstr GetSIMDInstr(void) {
     SIMDExecInstr instr;
 
-#if defined(COMPILER_HAS_SIMD)
+#if defined(COMPILER_HAS_SIMD_X86)
     __builtin_cpu_init();
 #endif
 
@@ -570,7 +577,7 @@ static SIMDExecInstr GetSIMDInstr(void) {
         instr = SIMD_AVX512;
     else
 #endif
-#if defined(COMPILER_HAS_SIMD)
+#if defined(COMPILER_HAS_SIMD_X86)
         if (__builtin_cpu_supports("avx2"))
             instr = SIMD_AVX2;
         else if (__builtin_cpu_supports("avx"))
@@ -581,7 +588,12 @@ static SIMDExecInstr GetSIMDInstr(void) {
             instr = SIMD_MMX;
         else
 #endif
-            instr = SIMD_NONE;
+#if defined(COMPILER_HAS_SIMD_NEON)
+            if (arm_has_neon())
+                instr = SIMD_NEON;
+            else
+#endif
+                instr = SIMD_NONE;
 
     return instr;
 }
@@ -605,7 +617,7 @@ uint64_t crack_states_bitsliced_dispatch(uint32_t cuid, uint8_t *best_first_byte
             crack_states_bitsliced_function_p = &crack_states_bitsliced_AVX512;
             break;
 #endif
-#if defined(COMPILER_HAS_SIMD)
+#if defined(COMPILER_HAS_SIMD_X86)
         case SIMD_AVX2:
             crack_states_bitsliced_function_p = &crack_states_bitsliced_AVX2;
             break;
@@ -617,6 +629,11 @@ uint64_t crack_states_bitsliced_dispatch(uint32_t cuid, uint8_t *best_first_byte
             break;
         case SIMD_MMX:
             crack_states_bitsliced_function_p = &crack_states_bitsliced_MMX;
+            break;
+#endif
+#if defined(COMPILER_HAS_SIMD_NEON)
+        case SIMD_NEON:
+            crack_states_bitsliced_function_p = &crack_states_bitsliced_NEON;
             break;
 #endif
         case SIMD_AUTO:
@@ -636,7 +653,7 @@ void bitslice_test_nonces_dispatch(uint32_t nonces_to_bruteforce, const uint32_t
             bitslice_test_nonces_function_p = &bitslice_test_nonces_AVX512;
             break;
 #endif
-#if defined(COMPILER_HAS_SIMD)
+#if defined(COMPILER_HAS_SIMD_X86)
         case SIMD_AVX2:
             bitslice_test_nonces_function_p = &bitslice_test_nonces_AVX2;
             break;
@@ -648,6 +665,11 @@ void bitslice_test_nonces_dispatch(uint32_t nonces_to_bruteforce, const uint32_t
             break;
         case SIMD_MMX:
             bitslice_test_nonces_function_p = &bitslice_test_nonces_MMX;
+            break;
+#endif
+#if defined(COMPILER_HAS_SIMD_NEON)
+        case SIMD_NEON:
+            bitslice_test_nonces_function_p = &bitslice_test_nonces_NEON;
             break;
 #endif
         case SIMD_AUTO:

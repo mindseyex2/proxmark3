@@ -170,7 +170,7 @@ static int CmdPrescoClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf presco clone",
                   "clone a presco tag to a T55x7, Q5/T5555 or EM4305/4469 tag.",
-                  "lf presco clone -d 018363467\n"
+                  "lf presco clone -d 018363467           -> encode for T55x7 tag\n"
                   "lf presco clone -d 018363467 --q5      -> encode for Q5/T5555 tag\n"
                   "lf presco clone -d 018363467 --em      -> encode for EM4305/4469"
                  );
@@ -189,8 +189,8 @@ static int CmdPrescoClone(const char *Cmd) {
     uint8_t hex[4] = {0, 0, 0, 0};
     CLIGetHexWithReturn(ctx, 1, hex, &hex_len);
 
-    uint8_t idstr[11];
-    int slen = 9;
+    uint8_t idstr[10];
+    int slen = sizeof(idstr) - 1; // CLIGetStrWithReturn does not guarantee string to be null-terminated
     memset(idstr, 0x00, sizeof(idstr));
     CLIGetStrWithReturn(ctx, 2, idstr, &slen);
 
@@ -292,8 +292,8 @@ static int CmdPrescoSim(const char *Cmd) {
     uint8_t hex[4] = {0, 0, 0, 0};
     CLIGetHexWithReturn(ctx, 1, hex, &hex_len);
 
-    uint8_t idstr[11];
-    int slen = 9;
+    uint8_t idstr[10] = {0};
+    int slen = sizeof(idstr) - 1; // CLIGetStrWithReturn does not guarantee string to be null-terminated
     memset(idstr, 0x00, sizeof(idstr));
     CLIGetStrWithReturn(ctx, 2, idstr, &slen);
     CLIParserFree(ctx);
@@ -346,9 +346,10 @@ static int CmdPrescoSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_ASK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
+    }
     return PM3_SUCCESS;
 }
 
@@ -356,7 +357,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,        AlwaysAvailable, "This help"},
     {"demod",   CmdPrescoDemod, AlwaysAvailable, "demodulate Presco tag from the GraphBuffer"},
     {"reader",  CmdPrescoReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",   CmdPrescoClone,  IfPm3Lf,         "clone presco tag to T55x7 or Q5/T5555"},
+    {"clone",   CmdPrescoClone,  IfPm3Lf,         "clone presco tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdPrescoSim,    IfPm3Lf,         "simulate presco tag"},
     {NULL, NULL, NULL, NULL}
 };

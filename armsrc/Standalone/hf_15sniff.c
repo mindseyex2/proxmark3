@@ -43,7 +43,7 @@
  * 1. mem spiffs dump -s hf_15693sniff.trace -d hf_15693sniff.trace
  *    Copies trace data file from flash to your PC.
  *
- * 2. trace load hf_15693sniff.trace
+ * 2. trace load -f hf_15693sniff.trace
  *    Loads trace data from a file into PC-side buffers.
  *
  * 3. For ISO15693: trace list -t 15 -1
@@ -54,6 +54,7 @@
  * the lab connected to PM3 client before taking it into the field.
  *
  * To delete the trace data from flash:
+ *    mem spiffs remove -f hf_15693sniff.trace
  *
  * Caveats / notes:
  * - Trace buffer will be cleared on starting stand-alone mode. Data in flash
@@ -98,15 +99,22 @@ void RunMod(void) {
     StandAloneMode();
 
     Dbprintf(_YELLOW_("HF 15693 SNIFF started"));
+#ifdef WITH_FLASH
     rdv40_spiffs_lazy_mount();
+#endif
 
-    SniffIso15693(0, NULL);
+    SniffIso15693(0, NULL, false);
 
     Dbprintf("Stopped sniffing");
     SpinDelay(200);
 
-    // Write stuff to spiffs logfile
     uint32_t trace_len = BigBuf_get_traceLen();
+#ifndef WITH_FLASH
+    // Keep stuff in BigBuf for USB/BT dumping
+    if (trace_len > 0)
+        Dbprintf("[!] Trace length (bytes) = %u", trace_len);
+#else
+    // Write stuff to spiffs logfile
     if (trace_len > 0) {
         Dbprintf("[!] Trace length (bytes) = %u", trace_len);
 
@@ -130,6 +138,7 @@ void RunMod(void) {
 
     SpinErr(LED_A, 200, 5);
     SpinDelay(100);
+#endif
 
     Dbprintf("-=[ exit ]=-");
     LEDsoff();

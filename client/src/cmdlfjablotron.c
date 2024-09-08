@@ -163,9 +163,9 @@ static int CmdJablotronClone(const char *Cmd) {
     CLIParserInit(&ctx, "lf jablotron clone",
                   "clone a Jablotron tag to a T55x7, Q5/T5555 or EM4305/4469 tag.\n"
                   "Tag must be on the antenna when issuing this command.",
-                  "lf jablotron clone --cn 01b669\n"
-                  "lf jablotron clone --q5 --cn 01b669 -> encode for Q5/T5555 tag\n"
-                  "lf jablotron clone --em --cn 01b669 -> encode for EM4305/4469"
+                  "lf jablotron clone --cn 01b669      -> encode for T55x7 tag\n"
+                  "lf jablotron clone --cn 01b669 --q5 -> encode for Q5/T5555 tag\n"
+                  "lf jablotron clone --cn 01b669 --em -> encode for EM4305/4469"
                  );
 
     void *argtable[] = {
@@ -299,9 +299,10 @@ static int CmdJablotronSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_ASK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
+    }
     return PM3_SUCCESS;
 }
 
@@ -309,7 +310,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,            AlwaysAvailable, "This help"},
     {"demod",   CmdJablotronDemod,  AlwaysAvailable, "demodulate an Jablotron tag from the GraphBuffer"},
     {"reader",  CmdJablotronReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",   CmdJablotronClone,  IfPm3Lf,         "clone jablotron tag to T55x7 or Q5/T5555"},
+    {"clone",   CmdJablotronClone,  IfPm3Lf,         "clone jablotron tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdJablotronSim,    IfPm3Lf,         "simulate jablotron tag"},
     {NULL, NULL, NULL, NULL}
 };

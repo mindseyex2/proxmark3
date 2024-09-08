@@ -19,7 +19,11 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Set Git http.postBuffer to something high
         run: git config --global http.postBuffer 524288000
@@ -35,13 +39,11 @@ jobs:
         run: brew tap RfidResearchGroup/proxmark3
 
       - name: Install dependencies
-        run: brew install readline coreutils qt5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl
+        run: brew install readline coreutils qt@5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl gd
+        continue-on-error: true
 
       - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install setuptools ansicolors sslcrypto
-          if [ -f requirements.txt ]; then python3 -m pip install -r requirements.txt; fi
+        run: pip install -r tools/requirements.txt
 
       - name: make clean
         run: make clean
@@ -49,18 +51,20 @@ jobs:
       - name: Build
         env:
           V: 1
-        run: make
+        run: make -j$((`sysctl -n hw.ncpu` + 1))
 
       - name: Test
         run: make check
 
   macos-make-btaddon:
-    if: always()
-    needs: [macos-make]
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Set Git http.postBuffer to something high
         run: git config --global http.postBuffer 524288000
@@ -76,13 +80,11 @@ jobs:
         run: brew tap RfidResearchGroup/proxmark3
 
       - name: Install dependencies
-        run: brew install readline coreutils qt5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl
+        run: brew install readline coreutils qt@5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl gd
+        continue-on-error: true
 
       - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install setuptools ansicolors sslcrypto
-          if [ -f requirements.txt ]; then python3 -m pip install -r requirements.txt; fi
+        run: pip install -r tools/requirements.txt
 
       - name: make clean
         run: make clean
@@ -91,18 +93,20 @@ jobs:
         env:
           V: 1
           PLATFORM_EXTRAS: BTADDON
-        run: make
+        run: make -j$((`sysctl -n hw.ncpu` + 1))
 
       - name: Test
         run: make check
 
   macos-cmake:
-    if: always()
-    needs: [macos-make, macos-make-btaddon]
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Set Git http.postBuffer to something high
         run: git config --global http.postBuffer 524288000
@@ -118,13 +122,11 @@ jobs:
         run: brew tap RfidResearchGroup/proxmark3
 
       - name: Install dependencies
-        run: brew install readline coreutils qt5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl
+        run: brew install readline coreutils qt@5 RfidResearchGroup/proxmark3/arm-none-eabi-gcc openssl gd
+        continue-on-error: true
 
       - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install setuptools ansicolors sslcrypto
-          if [ -f requirements.txt ]; then python3 -m pip install -r requirements.txt; fi
+        run: pip install -r tools/requirements.txt
 
       - name: Prepare Build Folders
         run: |
@@ -141,7 +143,7 @@ jobs:
       - name: Build
         env:
           VERBOSE: 1
-        run: make
+        run: make -j$((`sysctl -n hw.ncpu` + 1))
         working-directory: client/build/
 
       - name: Test

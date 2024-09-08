@@ -17,9 +17,7 @@
 //-----------------------------------------------------------------------------
 
 #include "iso7816core.h"
-
 #include <string.h>
-
 #include "commonutil.h"  // ARRAYLEN
 #include "comms.h"       // DropField
 #include "cmdparser.h"
@@ -29,6 +27,7 @@
 #include "cmdhf14b.h"
 #include "iso14b.h"      // iso14b_raw_cmd_t
 #include "util_posix.h"
+#include "protocols.h"   // ISO7816 APDU return codes
 
 //iceman:  this logging setting, should be unified with client debug etc.
 static bool APDULogging = false;
@@ -45,10 +44,11 @@ static isodep_state_t isodep_state = ISODEP_INACTIVE;
 void SetISODEPState(isodep_state_t state) {
     isodep_state = state;
     if (APDULogging) {
-        PrintAndLogEx(SUCCESS, "Setting ISODEP -> %s%s%s"
+        PrintAndLogEx(SUCCESS, "Setting ISODEP -> %s%s%s%s"
                       , isodep_state == ISODEP_INACTIVE ? "inactive" : ""
                       , isodep_state == ISODEP_NFCA ? _GREEN_("NFC-A") : ""
                       , isodep_state == ISODEP_NFCB ? _GREEN_("NFC-B") : ""
+                      , isodep_state == ISODEP_NFCV ? _GREEN_("NFC-V") : ""
                      );
     }
 }
@@ -65,7 +65,6 @@ int Iso7816Connect(Iso7816CommandChannel channel) {
     // select with no disconnect and set frameLength
     int res = SelectCard14443A_4(false, false, NULL);
     if (res == PM3_SUCCESS) {
-        SetISODEPState(ISODEP_NFCA);
         return PM3_SUCCESS;
     }
 
@@ -73,7 +72,6 @@ int Iso7816Connect(Iso7816CommandChannel channel) {
     // If not 14a, try to 14b
     res = select_card_14443b_4(false, NULL);
     if (res == PM3_SUCCESS) {
-        SetISODEPState(ISODEP_NFCB);
         return PM3_SUCCESS;
     }
 
@@ -111,8 +109,9 @@ int Iso7816ExchangeEx(Iso7816CommandChannel channel, bool activate_field, bool l
         return 201;
     }
 
-    if (APDULogging)
+    if (APDULogging) {
         PrintAndLogEx(SUCCESS, ">>>> %s", sprint_hex(data, datalen));
+    }
 
     int res = 0;
 
@@ -126,6 +125,9 @@ int Iso7816ExchangeEx(Iso7816CommandChannel channel, bool activate_field, bool l
                 case ISODEP_NFCB:
                     res = exchange_14b_apdu(data, datalen, activate_field, leave_field_on, result, (int)max_result_len, (int *)result_len, 4000);
                     break;
+                case ISODEP_NFCV:
+                    PrintAndLogEx(INFO, " To be implemented, feel free to contribute!");
+                    break;
                 case ISODEP_INACTIVE:
                     if (activate_field == false) {
                         PrintAndLogEx(FAILED, "Field currently inactive, cannot send an APDU");
@@ -134,6 +136,7 @@ int Iso7816ExchangeEx(Iso7816CommandChannel channel, bool activate_field, bool l
                     res = ExchangeAPDU14a(data, datalen, activate_field, leave_field_on, result, (int)max_result_len, (int *)result_len);
                     if (res != PM3_SUCCESS) {
                         res = exchange_14b_apdu(data, datalen, activate_field, leave_field_on, result, (int)max_result_len, (int *)result_len, 4000);
+                        PrintAndLogEx(INFO, "Testing ISO14443-B... ( %s )", (res == PM3_SUCCESS) ?  _GREEN_("ok") : _RED_("fail"));
                     }
                     break;
             }
@@ -149,15 +152,16 @@ int Iso7816ExchangeEx(Iso7816CommandChannel channel, bool activate_field, bool l
                 res = ExchangeAPDUSC(false, data, datalen, activate_field, leave_field_on, result, (int)max_result_len, (int *)result_len);
             }
 
-            if (res) {
+            if (res != PM3_SUCCESS) {
                 return res;
             }
             break;
         }
     }
 
-    if (APDULogging)
+    if (APDULogging) {
         PrintAndLogEx(SUCCESS, "<<<< %s", sprint_hex(result, *result_len));
+    }
 
     if (*result_len < 2) {
         return 200;
@@ -170,12 +174,12 @@ int Iso7816ExchangeEx(Iso7816CommandChannel channel, bool activate_field, bool l
         *sw = isw;
     }
 
-    if (isw != 0x9000) {
+    if (isw != ISO7816_OK) {
         if (APDULogging) {
             if (*sw >> 8 == 0x61) {
-                PrintAndLogEx(ERR, "APDU chaining len %02x", *sw & 0xFF);
+                PrintAndLogEx(ERR, "APDU chaining len " _RED_("%02x"), *sw & 0xFF);
             } else {
-                PrintAndLogEx(ERR, "APDU(%02x%02x) ERROR: [%4X] %s", apdu.CLA, apdu.INS, isw, GetAPDUCodeDescription(*sw >> 8, *sw & 0xFF));
+                PrintAndLogEx(ERR, "APDU (%02x%02x) ERROR... " _RED_("%4X") " - %s", apdu.CLA, apdu.INS, isw, GetAPDUCodeDescription(*sw >> 8, *sw & 0xFF));
                 return 5;
             }
         }

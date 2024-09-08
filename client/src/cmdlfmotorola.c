@@ -37,7 +37,7 @@ static int CmdHelp(const char *Cmd);
 int demodMotorola(bool verbose) {
     (void) verbose; // unused so far
     //PSK1
-    if (PSKDemod(32, 1, 100, true) != PM3_SUCCESS) {
+    if (PSKDemod(32, 1, 100, false) != PM3_SUCCESS) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - Motorola: PSK Demod failed");
         return PM3_ESOFT;
     }
@@ -128,7 +128,7 @@ int demodMotorola(bool verbose) {
 static int CmdMotorolaDemod(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf motorola demod",
-                  "Try to find Motorola preamble, if found decode / descramble data",
+                  "Try to find Motorola Flexpass preamble, if found decode / descramble data",
                   "lf motorola demod"
                  );
 
@@ -144,7 +144,7 @@ static int CmdMotorolaDemod(const char *Cmd) {
 static int CmdMotorolaReader(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf motorola reader",
-                  "read a Motorola tag",
+                  "read a Motorola Flexpass tag",
                   "lf motorola reader -@   -> continuous reader mode"
                  );
 
@@ -172,7 +172,7 @@ static int CmdMotorolaReader(const char *Cmd) {
         .samples_to_skip = 4500,
         .verbose = false
     };
-    lf_config(&sc);
+    lf_setconfig(&sc);
 
     int res;
     do {
@@ -184,7 +184,7 @@ static int CmdMotorolaReader(const char *Cmd) {
     // reset back to 125 kHz
     sc.divisor = LF_DIVISOR_125;
     sc.samples_to_skip = 0;
-    lf_config(&sc);
+    lf_setconfig(&sc);
 
     return res;
 }
@@ -194,9 +194,9 @@ static int CmdMotorolaClone(const char *Cmd) {
     CLIParserInit(&ctx, "lf motorola clone",
                   "clone Motorola UID to a T55x7, Q5/T5555 or EM4305/4469 tag.\n"
                   "defaults to 64 bit format",
-                  "lf motorola clone --raw a0000000a0002021\n"
-                  "lf motorola clone --q5 --raw a0000000a0002021   -> encode for Q5/T5555 tag\n"
-                  "lf motorola clone --em --raw a0000000a0002021   -> encode for EM4305/4469"
+                  "lf motorola clone --raw a0000000a0002021       -> encode for T55x7 tag\n"
+                  "lf motorola clone --raw a0000000a0002021 --q5  -> encode for Q5/T5555 tag\n"
+                  "lf motorola clone --raw a0000000a0002021 --em  -> encode for EM4305/4469"
                  );
 
     void *argtable[] = {

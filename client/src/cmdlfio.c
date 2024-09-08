@@ -55,7 +55,7 @@ static int CmdIOProxWatch(const char *Cmd) {
     CLIParserFree(ctx);
 
     PrintAndLogEx(SUCCESS, "Watching for IO Prox cards - place tag on antenna");
-    PrintAndLogEx(INFO, "Press pm3-button to stop reading cards");
+    PrintAndLogEx(INFO, "Press " _GREEN_("pm3 button") " to stop reading cards");
     clearCommandBuffer();
     SendCommandNG(CMD_LF_IO_WATCH, NULL, 0);
     return lfsim_wait_check(CMD_LF_IO_WATCH);
@@ -66,10 +66,15 @@ static int CmdIOProxWatch(const char *Cmd) {
 int demodIOProx(bool verbose) {
     (void) verbose; // unused so far
     int idx = 0, retval = PM3_SUCCESS;
-    uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
-    size_t size = getFromGraphBuf(bits);
+    uint8_t *bits = calloc(MAX_GRAPH_TRACE_LEN, sizeof(uint8_t));
+    if (bits == NULL) {
+        PrintAndLogEx(FAILED, "failed to allocate memory");
+        return PM3_EMALLOC;
+    }
+    size_t size = getFromGraphBuffer(bits);
     if (size < 65) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox not enough samples in GraphBuffer");
+        free(bits);
         return PM3_ESOFT;
     }
     //get binary from fsk wave
@@ -93,6 +98,7 @@ int demodIOProx(bool verbose) {
                 PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox error demoding fsk %d", idx);
             }
         }
+        free(bits);
         return PM3_ESOFT;
     }
     setDemodBuff(bits, size, idx);
@@ -103,6 +109,7 @@ int demodIOProx(bool verbose) {
             PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox data not found - FSK Bits: %zu", size);
             if (size > 92) PrintAndLogEx(DEBUG, "%s", sprint_bytebits_bin_break(bits, 92, 16));
         }
+        free(bits);
         return PM3_ESOFT;
     }
 
@@ -156,6 +163,7 @@ int demodIOProx(bool verbose) {
         printDemodBuff(0, false, false, true);
         printDemodBuff(0, false, false, false);
     }
+    free(bits);
     return retval;
 }
 
@@ -229,7 +237,7 @@ static int CmdIOProxSim(const char *Cmd) {
     }
 
     PrintAndLogEx(SUCCESS, "Simulating ioProx version: " _YELLOW_("%u") " FC: " _YELLOW_("%u (0x%02x)") " CN: " _YELLOW_("%u"), version, fc, fc, cn);
-    PrintAndLogEx(SUCCESS, "Press pm3-button to abort simulation or run another command");
+    PrintAndLogEx(SUCCESS, "Press " _GREEN_("pm3 button") " to abort simulation or run another command");
 
     uint8_t bs[64];
     memset(bs, 0x00, sizeof(bs));
@@ -254,9 +262,10 @@ static int CmdIOProxSim(const char *Cmd) {
     free(payload);
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_FSK_SIMULATE, &resp);
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
+    }
     return PM3_SUCCESS;
 }
 
@@ -316,12 +325,23 @@ static int CmdIOProxClone(const char *Cmd) {
 
     // EM4305
     if (em) {
+        // TODO: it seems an EM4305 tag supporting FSK still runs at RF/50 even if configured at RF/64
+        // lf em 4x05 info <> lf read ; data detectclock --fs
+        // So, it seems cloning ioProx on EM4305 is not possible...
         blocks[0] = EM4305_IOPROX_CONFIG_BLOCK;
         snprintf(cardtype, sizeof(cardtype), "EM4305/4469");
     }
 
     blocks[1] = bytebits_to_byte(bits, 32);
     blocks[2] = bytebits_to_byte(bits + 32, 32);
+
+    // EM4305
+    if (em) {
+        // invert FSK data
+        for (uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
+            blocks[i] = blocks[i] ^ 0xFFFFFFFF;
+        }
+    }
 
     PrintAndLogEx(INFO, "Preparing to clone ioProx to " _YELLOW_("%s") " with Version: " _GREEN_("%u") " FC: " _GREEN_("%u (0x%02x)") " CN: " _GREEN_("%u")
                   , cardtype
@@ -430,4 +450,3 @@ int getIOProxBits(uint8_t version, uint8_t fc, uint16_t cn, uint8_t *bits) {
     PrintAndLogEx(SUCCESS, "IO raw bits:\n %s \n", sprint_bytebits_bin(bits, 64));
     return PM3_SUCCESS;
 }
-

@@ -13,11 +13,14 @@
 //
 // See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
-// Low frequency EM4x70 structs
+// Low frequency EM4x70 structs -- common to both ARM firmware and client
 //-----------------------------------------------------------------------------
 
 #ifndef EM4X70_H__
 #define EM4X70_H__
+
+#include <stdint.h>
+#include <stdbool.h>
 
 #define EM4X70_NUM_BLOCKS 16
 
@@ -26,21 +29,33 @@
 #define EM4X70_PIN_WORD_UPPER 11
 
 typedef struct {
+    // ISSUE: `bool` type does not have a standard-defined size.
+    //        therefore, compatibility between architectures /
+    //        compilers is not guaranteed.
+    // ISSUE: C99 has no _Static_assert() ... was added in C11
+    // TODO: add _Static_assert(sizeof(bool)==1);
+    // TODO: add _Static_assert(sizeof(em4x70_data_t)==36);
     bool parity;
 
     // Used for writing address
     uint8_t address;
+    // ISSUE: Presumes target is little-endian
     uint16_t word;
 
     // PIN to unlock
     uint32_t pin;
 
     // Used for authentication
-    uint8_t rnd[7];
     uint8_t frnd[4];
+    uint8_t grnd[3];
+    uint8_t rnd[7];
 
     // Used to write new key
     uint8_t crypt_key[12];
+
+    // used for bruteforce the partial key
+    // ISSUE: Presumes target is little-endian
+    uint16_t start_key;
 
 } em4x70_data_t;
 

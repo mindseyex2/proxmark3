@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <libgen.h>        // basename
+#include <time.h>
 
 #include "pm3line.h"
 #include "usart_defs.h"
@@ -36,12 +37,18 @@
 #include "fileutils.h"
 #include "flash.h"
 #include "preferences.h"
+#include "commonutil.h"
 
-static int mainret = PM3_ESOFT;
+#ifndef _WIN32
+#include <locale.h>
+#endif
+
+
+static int mainret = PM3_SUCCESS;
 
 #ifndef LIBPM3
 #define BANNERMSG1 ""
-#define BANNERMSG2 "   [ :snowflake: ]"
+#define BANNERMSG2 "   [ :coffee: ]"
 #define BANNERMSG3 ""
 
 typedef enum LogoMode { UTF8, ANSI, ASCII } LogoMode;
@@ -99,6 +106,105 @@ static void showBanner_logo(LogoMode mode) {
     PrintAndLogEx(NORMAL, BANNERMSG3);
 }
 
+static uint8_t detect_current_lang(void) {
+#ifndef _WIN32
+    const char *lang = setlocale(LC_ALL, "");
+    if (lang == NULL) {
+        return 1;
+    }
+    if (memcmp(lang, "fr", 2) == 0) {
+        return 2;
+    }
+    if (memcmp(lang, "es", 2) == 0) {
+        return 3;
+    }
+#endif
+    return 1;
+}
+
+static const char *get_quote(void) {
+
+    const char *quotes_en[] = {
+        "Fund creativity, empower dreams",
+        "Invest in open innovation",
+        "Donate, empower, grow, sustain",
+        "Back global innovation today",
+        "Fuel open source revolution",
+        "Contribute funds, drive progress",
+        "Sponsor innovation, build tomorrow",
+        "Consider supporting: fund innovation",
+        "Your donation fuels progress",
+        "Empower dreams with your support",
+        "Join us: finance creative freedom",
+        "Make an impact: donate today",
+        "Help us drive open innovation",
+        "Your support, our future",
+        "Invest in a better tomorrow",
+        "Every contribution powers change",
+        "Support us, shape the future",
+        "Ignite change: support open-source creativity",
+        "Together, we can innovate without limits",
+    };
+
+    const char *quotes_fr[] = {
+        "Financez la créativité, donnez pouvoir aux rêves",
+        "Investissez dans l'innovation ouverte",
+        "Donnez, habilitez, croissez, soutenez",
+        "Soutenez l'innovation mondiale aujourd'hui",
+        "Alimentez la révolution open source",
+        "Contribuez financièrement, poussez le progrès",
+        "Parrainez l'innovation, construisez demain",
+        "Envisagez de soutenir : financez l'innovation",
+        "Votre don alimente le progrès",
+        "Donnez pouvoir aux rêves avec votre soutien",
+        "Rejoignez-nous : financez la liberté créative",
+        "Faites une différence : donnez aujourd'hui",
+        "Aidez-nous à stimuler l'innovation ouverte",
+        "Votre soutien, notre avenir",
+        "Investissez dans un meilleur demain",
+        "Chaque contribution favorise le changement",
+        "Soutenez-nous, façonnez l'avenir",
+        "Allumez le changement : soutenez la créativité open-source",
+        "Ensemble, nous pouvons innover sans limites",
+    };
+
+    const char *quotes_es[] = {
+        "Financia la creatividad, empodera sueños",
+        "Invierte en innovación abierta",
+        "Dona, empodera, crece, sostén",
+        "Apoya la innovación global hoy",
+        "Impulsa la revolución de código abierto",
+        "Contribuye fondos, impulsa el progreso",
+        "Patrocina la innovación, construye el mañana",
+        "Considera apoyar: financia la innovación",
+        "Tu donación impulsa el progreso",
+        "Empodera sueños con tu apoyo",
+        "Únete a nosotros: financia la libertad creativa",
+        "Haz un impacto: dona hoy",
+        "Ayúdanos a impulsar la innovación abierta",
+        "Tu apoyo, nuestro futuro",
+        "Invierte en un mejor mañana",
+        "Cada contribución impulsa el cambio",
+        "Apóyanos, forma el futuro",
+        "Enciende el cambio: apoya la creatividad de código abierto",
+        "Juntos, podemos innovar sin límites",
+    };
+
+    srand((uint32_t)time(NULL));
+    int r = rand() % ARRAYLEN(quotes_en);
+
+    uint8_t lang = detect_current_lang();
+    switch (lang) {
+        case 2:
+            return quotes_fr[r];
+        case 3:
+            return quotes_es[r];
+        case 1:
+        default:
+            return quotes_en[r];
+    }
+}
+
 static void showBanner(void) {
     uint8_t old_printAndLog = g_printAndLog;
     g_printAndLog &= PRINTANDLOG_PRINT;
@@ -116,10 +222,15 @@ static void showBanner(void) {
 #else
     showBanner_logo(ASCII);
 #endif
-//    PrintAndLogEx(NORMAL, "\nSupport iceman on patreon - https://www.patreon.com/iceman1001/");
-//    PrintAndLogEx(NORMAL, "                 on paypal - https://www.paypal.me/iceman1001");
-//    PrintAndLogEx(NORMAL, "\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
-//    PrintAndLogEx(NORMAL, "");
+
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "  [ " _YELLOW_("%s!")" ]", get_quote());
+    PrintAndLogEx(NORMAL, "     Patreon - https://www.patreon.com/iceman1001/");
+    PrintAndLogEx(NORMAL, "     Paypal  - https://www.paypal.me/iceman1001/");
+    PrintAndLogEx(NORMAL, "");
+//    PrintAndLogEx(NORMAL, "   Monero");
+//    PrintAndLogEx(NORMAL, " 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
+    PrintAndLogEx(NORMAL, "");
     fflush(stdout);
     g_printAndLog = old_printAndLog;
 }
@@ -127,24 +238,84 @@ static void showBanner(void) {
 
 static const char *prompt_dev = "";
 static const char *prompt_ctx = "";
+static const char *prompt_net = "";
 
-static void prompt_compose(char *buf, size_t buflen, const char *promptctx, const char *promptdev) {
-    snprintf(buf, buflen - 1, PROXPROMPT_COMPOSE, promptdev, promptctx);
+
+static void prompt_set(void) {
+    if (g_session.pm3_present) {
+
+        switch (g_conn.send_via_ip) {
+            case PM3_TCPv4:
+                prompt_net = PROXPROMPT_NET_TCPV4;
+                break;
+            case PM3_TCPv6:
+                prompt_net = PROXPROMPT_NET_TCPV6;
+                break;
+            case PM3_UDPv4:
+                prompt_net = PROXPROMPT_NET_UDPV4;
+                break;
+            case PM3_UDPv6:
+                prompt_net = PROXPROMPT_NET_UDPV6;
+                break;
+            case PM3_NONE:
+                prompt_net = PROXPROMPT_NET_NONE;
+                break;
+            default:
+                break;
+        }
+
+        if (g_conn.send_via_fpc_usart)
+            prompt_dev = PROXPROMPT_DEV_FPC;
+        else
+            prompt_dev = PROXPROMPT_DEV_USB;
+
+    } else {
+        prompt_dev = PROXPROMPT_DEV_OFFLINE;
+    }
 }
 
+static void prompt_compose(char *buf, size_t buflen, const char *promptctx, const char *promptdev, const char *promptnet, bool no_newline) {
+    if (no_newline) {
+        snprintf(buf, buflen - 1, PROXPROMPT_COMPOSE, promptdev, promptnet, promptctx);
+    } else {
+        snprintf(buf, buflen - 1, "\r                                         \r" PROXPROMPT_COMPOSE, promptdev, promptnet, promptctx);
+    }
+}
+
+static bool c_update_reconnect_prompt = false;
+
+// This function is hooked via RL_EVENT_HOOK.
 static int check_comm(void) {
     // If communications thread goes down. Device disconnected then this should hook up PM3 again.
     if (IsCommunicationThreadDead() && g_session.pm3_present) {
-        PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") " mode. Use "_YELLOW_("\"hw connect\"") " to reconnect\n");
+
+#ifndef HAVE_READLINE
+        PrintAndLogEx(INFO, _YELLOW_("OFFLINE") " mode. Use "_YELLOW_("\"hw connect\"") " to reconnect\n");
+#endif
         prompt_dev = PROXPROMPT_DEV_OFFLINE;
         char prompt[PROXPROMPT_MAX_SIZE] = {0};
-        prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
+        prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev, prompt_net, false);
         char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
         memcpy_filter_ansi(prompt_filtered, prompt, sizeof(prompt_filtered), !g_session.supports_colors);
         pm3line_update_prompt(prompt_filtered);
         CloseProxmark(g_session.current_device);
+        StartReconnectProxmark();
+        c_update_reconnect_prompt = true;
     }
-    msleep(10);
+    // its alive again
+    if (c_update_reconnect_prompt && IsReconnectedOk() && g_session.pm3_present) {
+
+        prompt_set();
+
+        char prompt[PROXPROMPT_MAX_SIZE] = {0};
+        prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev, prompt_net, false);
+        char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
+        memcpy_filter_ansi(prompt_filtered, prompt, sizeof(prompt_filtered), !g_session.supports_colors);
+        pm3line_update_prompt(prompt_filtered);
+        c_update_reconnect_prompt = false;
+    }
+
+    msleep(50);
     return 0;
 }
 
@@ -214,7 +385,7 @@ void
 __attribute__((force_align_arg_pointer))
 #endif
 #endif
-main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
+main_loop(const char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
 
     char *cmd = NULL;
     bool execCommand = (script_cmd != NULL);
@@ -222,7 +393,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     uint16_t script_cmd_len = 0;
     if (execCommand) {
         script_cmd_len = strlen(script_cmd);
-        strcreplace(script_cmd, script_cmd_len, ';', '\0');
+        str_creplace(script_cmd, script_cmd_len, ';', '\0');
     }
     bool stdinOnPipe = !isatty(STDIN_FILENO);
     char script_cmd_buf[256] = {0x00};  // iceman, needs lua script the same file_path_buffer as the rest
@@ -250,16 +421,13 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     if (g_session.incognito) {
         PrintAndLogEx(INFO, "No history will be recorded");
     } else {
-        bool loaded_history = false;
         if (searchHomeFilePath(&g_session.history_path, NULL, PROXHISTORY, true) != PM3_SUCCESS) {
             g_session.history_path = NULL;
-        } else {
-            loaded_history = (pm3line_load_history(g_session.history_path) == PM3_SUCCESS);
-        }
-        if (loaded_history) {
-            pm3line_install_signals();
-        } else {
             PrintAndLogEx(ERR, "No history will be recorded");
+        } else {
+            if (pm3line_load_history(g_session.history_path) != PM3_SUCCESS) {
+                PrintAndLogEx(INFO, "No previous history could be loaded");
+            }
         }
     }
 
@@ -267,14 +435,8 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     while (1) {
 
         bool printprompt = false;
-        if (g_session.pm3_present) {
-            if (g_conn.send_via_fpc_usart == false)
-                prompt_dev = PROXPROMPT_DEV_USB;
-            else
-                prompt_dev = PROXPROMPT_DEV_FPC;
-        } else {
-            prompt_dev = PROXPROMPT_DEV_OFFLINE;
-        }
+
+        prompt_set();
 
 check_script:
         // If there is a script file
@@ -285,19 +447,22 @@ check_script:
 
             // read script file
             if (fgets(script_cmd_buf, sizeof(script_cmd_buf), current_cmdscriptfile()) == NULL) {
-                if (!pop_cmdscriptfile())
+                if (pop_cmdscriptfile() == false) {
                     break;
-
+                }
                 goto check_script;
-            } else {
-                prompt_ctx = PROXPROMPT_CTX_SCRIPTFILE;
-                // remove linebreaks
-                strcleanrn(script_cmd_buf, sizeof(script_cmd_buf));
-
-                cmd = str_dup(script_cmd_buf);
-                if (cmd != NULL)
-                    printprompt = true;
             }
+
+            prompt_ctx = PROXPROMPT_CTX_SCRIPTFILE;
+
+            // remove linebreaks
+            str_cleanrn(script_cmd_buf, sizeof(script_cmd_buf));
+
+            cmd = str_dup(script_cmd_buf);
+            if (cmd != NULL) {
+                printprompt = true;
+            }
+
         } else {
             // If there is a script command
             if (execCommand) {
@@ -333,15 +498,15 @@ check_script:
                     fromInteractive = false;
                     script_cmd = script_cmd_buf;
                     script_cmd_len = strlen(script_cmd);
-                    strcreplace(script_cmd, script_cmd_len, ';', '\0');
+                    str_creplace(script_cmd, script_cmd_len, ';', '\0');
                     // remove linebreaks
-                    strcleanrn(script_cmd, script_cmd_len);
+                    str_cleanrn(script_cmd, script_cmd_len);
                     goto check_script;
                 } else {
                     pm3line_check(check_comm);
                     prompt_ctx = PROXPROMPT_CTX_INTERACTIVE;
                     char prompt[PROXPROMPT_MAX_SIZE] = {0};
-                    prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
+                    prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev, prompt_net, true);
                     char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
                     memcpy_filter_ansi(prompt_filtered, prompt, sizeof(prompt_filtered), !g_session.supports_colors);
                     g_pendingPrompt = true;
@@ -355,9 +520,9 @@ check_script:
                         stayInCommandLoop = true;
                         fromInteractive = true;
                         script_cmd_len = strlen(script_cmd);
-                        strcreplace(script_cmd, script_cmd_len, ';', '\0');
+                        str_creplace(script_cmd, script_cmd_len, ';', '\0');
                         // remove linebreaks
-                        strcleanrn(script_cmd, script_cmd_len);
+                        str_cleanrn(script_cmd, script_cmd_len);
                         goto check_script;
                     }
                     fflush(NULL);
@@ -388,10 +553,10 @@ check_script:
             if (cmd[0] != '\0') {
                 uint8_t old_printAndLog = g_printAndLog;
                 if (!printprompt) {
-                    g_printAndLog &= PRINTANDLOG_LOG;
+                    g_printAndLog &= ~PRINTANDLOG_PRINT;
                 }
                 char prompt[PROXPROMPT_MAX_SIZE] = {0};
-                prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev);
+                prompt_compose(prompt, sizeof(prompt), prompt_ctx, prompt_dev, prompt_net, true);
                 // always filter RL magic separators if not using readline
                 char prompt_filtered[PROXPROMPT_MAX_SIZE] = {0};
                 memcpy_filter_rlmarkers(prompt_filtered, prompt, sizeof(prompt_filtered));
@@ -432,8 +597,9 @@ check_script:
         msleep(100); // Make sure command is sent before killing client
     }
 
-    while (current_cmdscriptfile())
+    while (current_cmdscriptfile()) {
         pop_cmdscriptfile();
+    }
 
     pm3line_flush_history();
 
@@ -574,11 +740,18 @@ static void show_help(bool showFullHelp, char *exec_name) {
         PrintAndLogEx(NORMAL, "      -s/--script-file <cmd_script_file>  script file with one Proxmark3 command per line");
         PrintAndLogEx(NORMAL, "      -i/--interactive                    enter interactive mode after executing the script or the command");
         PrintAndLogEx(NORMAL, "      --incognito                         do not use history, prefs file nor log files");
+        PrintAndLogEx(NORMAL, "      --ncpu <num_cores>                  override number of CPU cores");
         PrintAndLogEx(NORMAL, "\nOptions in flasher mode:");
         PrintAndLogEx(NORMAL, "      --flash                             flash Proxmark3, requires at least one --image");
+        PrintAndLogEx(NORMAL, "      --reboot-to-bootloader              reboot Proxmark3 into bootloader mode");
         PrintAndLogEx(NORMAL, "      --unlock-bootloader                 Enable flashing of bootloader area *DANGEROUS* (need --flash)");
         PrintAndLogEx(NORMAL, "      --force                             Enable flashing even if firmware seems to not match client version");
         PrintAndLogEx(NORMAL, "      --image <imagefile>                 image to flash. Can be specified several times.");
+        PrintAndLogEx(NORMAL, "\nOptions in memory dump mode:");
+        PrintAndLogEx(NORMAL, "      --dumpmem <dumpfile>                dumps Proxmark3 flash memory to file");
+        PrintAndLogEx(NORMAL, "      --dumpaddr <address>                starting address for dump, default 0");
+        PrintAndLogEx(NORMAL, "      --dumplen <length>                  number of bytes to dump, default 512KB");
+        PrintAndLogEx(NORMAL, "      --dumpraw                           raw address mode: dump from anywhere, not just flash");
         PrintAndLogEx(NORMAL, "\nExamples:");
         PrintAndLogEx(NORMAL, "\n  to run Proxmark3 client:\n");
         PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H"                       -- runs the pm3 client", exec_name);
@@ -603,7 +776,102 @@ static void show_help(bool showFullHelp, char *exec_name) {
     }
 }
 
-static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[FLASH_MAX_FILES], bool can_write_bl, bool force) {
+static int dumpmem_to_file(const char *filename, uint32_t addr, uint32_t len, bool raw, bool in_bootloader) {
+
+    uint8_t *buffer = calloc(len, sizeof(uint8_t));
+    if (buffer == NULL) {
+        PrintAndLogEx(ERR, "error, cannot allocate memory ");
+        return PM3_EMALLOC;
+    }
+
+    int res = PM3_EUNDEF;
+    size_t readlen = 0;
+    DeviceMemType_t type = raw ? MCU_MEM : MCU_FLASH;
+    if (GetFromDevice(type, buffer, len, addr, NULL, 0, NULL, 1000, true)) {
+        res = PM3_SUCCESS;
+        readlen = len; // GetFromDevice does not report the actual number of bytes received.
+    }
+
+    if (res == PM3_SUCCESS) {
+        res = saveFile(filename, ".bin", buffer, readlen);
+        if (res != PM3_SUCCESS) {
+            PrintAndLogEx(ERR, "error writing to file "_YELLOW_("%s"), filename);
+        }
+    }
+
+    free(buffer);
+    return res;
+}
+
+static int dumpmem_pm3(char *serial_port_name, const char *filename, uint32_t addr, uint32_t len, bool raw) {
+    int ret = PM3_EUNDEF;
+    bool in_bootloader = false;
+
+    if (serial_port_name == NULL) {
+        PrintAndLogEx(ERR, "You must specify a port.\n");
+        return PM3_EINVARG;
+    }
+
+    if (OpenProxmark(&g_session.current_device, serial_port_name, true, 60, true, FLASHMODE_SPEED)) {
+        PrintAndLogEx(NORMAL, _GREEN_(" found"));
+        msleep(200);
+    } else {
+        PrintAndLogEx(ERR, "Could not find Proxmark3 on " _RED_("%s") ".\n", serial_port_name);
+        ret = PM3_ETIMEOUT;
+        goto finish;
+    }
+
+    // Determine if we're talking to a bootloader or main firmware.
+    SendCommandBL(CMD_DEVICE_INFO, 0, 0, 0, NULL, 0);
+    PacketResponseNG resp;
+    if (WaitForResponseTimeout(CMD_UNKNOWN, &resp, 1000) == false) {
+        PrintAndLogEx(ERR, "Could not get device info.");
+        goto finish2;
+    }
+    uint32_t dev_info = resp.oldarg[0];
+    in_bootloader = (dev_info & DEVICE_INFO_FLAG_CURRENT_MODE_BOOTROM) != 0;
+    if (in_bootloader) {
+        if ((dev_info & DEVICE_INFO_FLAG_UNDERSTANDS_READ_MEM) != 0) {
+            PrintAndLogEx(INFO, "Device is running the bootloader.");
+        } else {
+            PrintAndLogEx(ERR, "Device is running the bootloader, but the bootloader"
+                          " doesn't understand the READ MEM command.");
+            goto finish2;
+        }
+    }
+
+    PrintAndLogEx(SUCCESS, "Dump requested from address "_YELLOW_("%u")", length "_YELLOW_("%u")"%s.",
+                  addr, len, raw ? ", in raw address mode" : "");
+
+    PrintAndLogEx(SUCCESS, _CYAN_("Memory dumping to file..."));
+    ret = dumpmem_to_file(filename, addr, len, raw, in_bootloader);
+    if (ret != PM3_SUCCESS) {
+        goto finish2;
+    }
+    PrintAndLogEx(NORMAL, "");
+
+finish2:
+    clearCommandBuffer();
+    if (in_bootloader) {
+        g_session.current_device->g_conn->run = false;
+        SendCommandOLD(CMD_PING, 0, 0, 0, NULL, 0);
+    } else {
+        SendCommandNG(CMD_QUIT_SESSION, NULL, 0);
+        msleep(100);
+    }
+    CloseProxmark(g_session.current_device);
+
+finish:
+    if (ret == PM3_SUCCESS)
+        PrintAndLogEx(SUCCESS, _CYAN_("All done"));
+    else if (ret == PM3_EOPABORTED)
+        PrintAndLogEx(FAILED, "Aborted by user");
+    else
+        PrintAndLogEx(ERR, "Aborted on error %u", ret);
+    return ret;
+}
+
+static int flash_pm3(char *serial_port_name, uint8_t num_files, const char *filenames[FLASH_MAX_FILES], bool can_write_bl, bool force) {
 
     int ret = PM3_EUNDEF;
     flash_file_t files[FLASH_MAX_FILES];
@@ -645,6 +913,7 @@ static int flash_pm3(char *serial_port_name, uint8_t num_files, char *filenames[
 
     if (OpenProxmark(&g_session.current_device, serial_port_name, true, 60, true, FLASHMODE_SPEED)) {
         PrintAndLogEx(NORMAL, _GREEN_(" found"));
+        msleep(200);
     } else {
         PrintAndLogEx(ERR, "Could not find Proxmark3 on " _RED_("%s") ".\n", serial_port_name);
         ret = PM3_ETIMEOUT;
@@ -696,6 +965,22 @@ finish2:
     PrintAndLogEx(INFO, "\nHave a nice day!");
     return ret;
 }
+
+static int reboot_bootloader_pm3(char *serial_port_name) {
+    if (serial_port_name == NULL) {
+        PrintAndLogEx(ERR, "You must specify a port.\n");
+        return PM3_EINVARG;
+    }
+
+    if (OpenProxmark(&g_session.current_device, serial_port_name, true, 60, true, FLASHMODE_SPEED) == false) {
+        PrintAndLogEx(ERR, "Could not find Proxmark3 on " _RED_("%s") ".\n", serial_port_name);
+        return PM3_ETIMEOUT;
+    }
+
+    PrintAndLogEx(NORMAL, _GREEN_(" found"));
+    return flash_reboot_bootloader(serial_port_name, true);
+}
+
 #endif //LIBPM3
 
 void pm3_init(void) {
@@ -732,11 +1017,17 @@ int main(int argc, char *argv[]) {
     strncpy(exec_name, basename(argv[0]), sizeof(exec_name) - 1);
 
     bool flash_mode = false;
+    bool reboot_bootloader_mode = false;
     bool flash_can_write_bl = false;
     bool flash_force = false;
     bool debug_mode_forced = false;
     int flash_num_files = 0;
-    char *flash_filenames[FLASH_MAX_FILES];
+    const char *flash_filenames[FLASH_MAX_FILES];
+    bool dumpmem_mode = false;
+    const char *dumpmem_filename = NULL;
+    uint32_t dumpmem_addr = 0;
+    uint32_t dumpmem_len = 512 * 1024;
+    bool dumpmem_raw = false;
 
     // color management:
     // 1. default = no color
@@ -938,9 +1229,53 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        // go to dump mode
+        if (strcmp(argv[i], "--dumpmem") == 0) {
+            dumpmem_mode = true;
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") " missing file specification after --dumpmem\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            dumpmem_filename = argv[++i];
+            continue;
+        }
+        if (strcmp(argv[i], "--dumpaddr") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") " missing address specification after -dumpaddr\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            uint32_t tmpaddr = strtoul(argv[i + 1], NULL, 0);
+            dumpmem_addr = tmpaddr;
+            i++;
+            continue;
+        }
+        if (strcmp(argv[i], "--dumplen") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") " missing address specification after -dumplen\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            uint32_t tmplen = strtoul(argv[i + 1], NULL, 0);
+            dumpmem_len = tmplen;
+            i++;
+            continue;
+        }
+        if (strcmp(argv[i], "--dumpraw") == 0) {
+            dumpmem_raw = true;
+            continue;
+        }
+
         // go to flash mode
         if (strcmp(argv[i], "--flash") == 0) {
             flash_mode = true;
+            continue;
+        }
+
+        // go to flash mode
+        if (strcmp(argv[i], "--reboot-to-bootloader") == 0) {
+            reboot_bootloader_mode = true;
             continue;
         }
 
@@ -971,6 +1306,23 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        if (strcmp(argv[i], "--ncpu") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") " missing CPU number specification after --ncpu\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            long int ncpus = strtol(argv[i + 1], NULL, 10);
+            const int detected_cpus = detect_num_CPUs();
+            if (ncpus < 0 || ncpus >= detected_cpus) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") " invalid number of CPU cores: --ncpu " _YELLOW_("%s") " (available: %d)\n", argv[i + 1], detected_cpus);
+                return 1;
+            }
+            g_numCPUs = ncpus;
+            i++;
+            continue;
+        }
+
         // We got an unknown parameter
         PrintAndLogEx(ERR, _RED_("ERROR:") " invalid parameter: " _YELLOW_("%s") "\n", argv[i]);
         show_help(false, exec_name);
@@ -996,8 +1348,18 @@ int main(int argc, char *argv[]) {
     if (speed == 0)
         speed = USART_BAUD_RATE;
 
+    if (dumpmem_mode) {
+        dumpmem_pm3(port, dumpmem_filename, dumpmem_addr, dumpmem_len, dumpmem_raw);
+        exit(EXIT_SUCCESS);
+    }
+
     if (flash_mode) {
         flash_pm3(port, flash_num_files, flash_filenames, flash_can_write_bl, flash_force);
+        exit(EXIT_SUCCESS);
+    }
+
+    if (reboot_bootloader_mode) {
+        reboot_bootloader_pm3(port);
         exit(EXIT_SUCCESS);
     }
 
@@ -1032,19 +1394,22 @@ int main(int argc, char *argv[]) {
     }
 
     if (g_session.pm3_present && (TestProxmark(g_session.current_device) != PM3_SUCCESS)) {
-        PrintAndLogEx(ERR, _RED_("ERROR:") " cannot communicate with the Proxmark\n");
+        PrintAndLogEx(ERR, _RED_("ERROR:") " cannot communicate with the Proxmark3\n");
         CloseProxmark(g_session.current_device);
     }
 
-    if ((port != NULL) && (!g_session.pm3_present))
+    if ((port != NULL) && (!g_session.pm3_present)) {
         exit(EXIT_FAILURE);
+    }
 
-    if (!g_session.pm3_present)
-        PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") " mode. Check " _YELLOW_("\"%s -h\"") " if it's not what you want.\n", exec_name);
+    if (!g_session.pm3_present) {
+        PrintAndLogEx(INFO, _YELLOW_("OFFLINE") " mode. Check " _YELLOW_("\"%s -h\"") " if it's not what you want.\n", exec_name);
+    }
 
     // ascii art only in interactive client
-    if (!script_cmds_file && !script_cmd && g_session.stdinOnTTY && g_session.stdoutOnTTY && !flash_mode)
+    if (!script_cmds_file && !script_cmd && g_session.stdinOnTTY && g_session.stdoutOnTTY && !dumpmem_mode && !flash_mode && !reboot_bootloader_mode) {
         showBanner();
+    }
 
     // Save settings if not loaded from settings json file.
     // Doing this here will ensure other checks and updates are saved to over rule default
@@ -1074,7 +1439,7 @@ int main(int argc, char *argv[]) {
     MainGraphics();
 #  else
     // for *nix distro's,  check environment variable to verify a display
-    char *display = getenv("DISPLAY");
+    const char *display = getenv("DISPLAY");
     if (display && strlen(display) > 1) {
         InitGraphics(argc, argv, script_cmds_file, script_cmd, stayInCommandLoop);
         MainGraphics();
@@ -1092,8 +1457,13 @@ int main(int argc, char *argv[]) {
         CloseProxmark(g_session.current_device);
     }
 
-    if (g_session.window_changed) // Plot/Overlay moved or resized
+    // Plot/Overlay moved or resized
+    if (g_session.window_changed) {
         preferences_save();
+    }
+
+    free_grabber();
+
     return mainret;
 }
 #endif //LIBPM3

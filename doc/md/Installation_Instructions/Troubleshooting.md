@@ -6,24 +6,29 @@ Always use the latest repository commits from *master* branch. There are always 
 
 ## Table of Contents
 
-  * [pm3 or pm3-flash* doesn't see my Proxmark](#pm3-or-pm3-flash-doesnt-see-my-proxmark)
-  * [pm3-flash* stops and warns about up-to-date firmware images](#pm3-flash-stops-and-warns-about-up-to-date-firmware-images)
-  * [My Proxmark3 seems bricked](#my-proxmark3-seems-bricked)
-     * [Maybe just a false alarm?](#maybe-just-a-false-alarm)
-     * [Find out why it would be bricked](#find-out-why-it-would-be-bricked)
-     * [Determine if the bootloader was damaged or only the main OS image](#determine-if-the-bootloader-was-damaged-or-only-the-main-os-image)
-     * [Ok, my bootloader is definitively dead, now what?](#ok-my-bootloader-is-definitively-dead-now-what)
-  * [Slow to boot or difficulties to enumerate the device over USB](#slow-to-boot-or-difficulties-to-enumerate-the-device-over-usb)
-  * [Troubles with SIM card reader](#troubles-with-sim-card-reader)
-  * [Troubles with t5577 commands or MFC/iClass/T55x7 dictionaries](#troubles-with-t5577-commands-or-mfciclasst55x7-dictionaries)
-  * [File not found](#file-not-found)
-  * [Pixmap / pixbuf warnings](#pixmap--pixbuf-warnings)
-  * [Usb cable](#usb-cable)
-  * [WSL explorer.exe . doesn't work](#WSL)
-  * [Troubles with running the Proxmark3 client](#troubles-with-running-the-proxmark3-client)
-  * [libQt5Core.so.5 not found](#libQt5Coreso5-not-found)
-  * [Target attribute is not supported on this machine](#target-attribute-is-not-supported-on-this-machine)
-  * [Qt: Session management error:](#qt-session-management-error)
+- [Troubleshooting guide](#troubleshooting-guide)
+  - [Table of Contents](#table-of-contents)
+  - [`pm3` or `pm3-flash*` doesn't see my Proxmark](#pm3-or-pm3-flash-doesnt-see-my-proxmark)
+  - [`pm3-flash*` stops and warns about up-to-date firmware images](#pm3-flash-stops-and-warns-about-up-to-date-firmware-images)
+  - [My Proxmark3 seems bricked](#my-proxmark3-seems-bricked)
+    - [Maybe just a false alarm?](#maybe-just-a-false-alarm)
+    - [Find out why it would be bricked](#find-out-why-it-would-be-bricked)
+    - [Determine if the bootloader was damaged or only the main OS image](#determine-if-the-bootloader-was-damaged-or-only-the-main-os-image)
+    - [Ok, my bootloader is definitively dead, now what?](#ok-my-bootloader-is-definitively-dead-now-what)
+  - [Slow to boot or difficulties to enumerate the device over USB](#slow-to-boot-or-difficulties-to-enumerate-the-device-over-usb)
+  - [Troubles with SIM card reader](#troubles-with-sim-card-reader)
+  - [Troubles with t5577 commands or MFC/iClass/T55x7 dictionaries](#troubles-with-t5577-commands-or-mfciclasst55x7-dictionaries)
+  - [File not found](#file-not-found)
+  - [Pixmap / pixbuf warnings](#pixmap--pixbuf-warnings)
+  - [Usb cable](#usb-cable)
+  - [WSL](#wsl)
+  - [Troubles with running the Proxmark3 client](#troubles-with-running-the-proxmark3-client)
+  - [libQt5Core.so.5 not found](#libqt5coreso5-not-found)
+  - [bzlib.h: No such file or directory](#bzlibh-no-such-file-or-directory)
+  - [target attribute is not supported on this machine](#target-attribute-is-not-supported-on-this-machine)
+  - [Qt Session management error](#qt-session-management-error)
+  - [found architecture 'x86\_64' required architecture 'arm64' error](#found-architecture-x86_64-required-architecture-arm64-error)
+  - [wrong permissions on runtime directory /run/user/1000](#wrong-permissions-on-runtime-directory-runuser1000)
 
 ## `pm3` or `pm3-flash*` doesn't see my Proxmark
 
@@ -36,13 +41,12 @@ client/proxmark3 <YOUR_PORT_HERE> ...
 Refer to the installation guide specific to your OS for details about ports.
 
 * [Linux](/doc/md/Installation_Instructions/Linux-Installation-Instructions.md)
-* [Mac OSX](/doc/md/Installation_Instructions/Mac-OS-X-Homebrew-Installation-Instructions.md)
+* [macOS](/doc/md/Installation_Instructions/macOS-Homebrew-Installation-Instructions.md)
 * [Windows](/doc/md/Installation_Instructions/Windows-Installation-Instructions.md)
 
 Note that with the Bluetooth adapter, you *have to* use directly the client, and flasher over Bluetooth is not possible.
 
 * [Bluetooth](/doc/bt_manual_v10.md)
-
 
 ## `pm3-flash*` stops and warns about up-to-date firmware images
 ^[Top](#top)
@@ -133,6 +137,8 @@ See [details here](/doc/md/Use_of_Proxmark/4_Advanced-compilation-parameters.md)
 
 (RDV4 only) Make sure you've the latest SIM firmware according to the [configuration documentation](/doc/md/Use_of_Proxmark/2_Configuration-and-Verification.md#verify-sim-module-firmware-version).
 
+Check that the SIM daughterboard is properly seated onto the mainboard.  Pressure on the edges of the daughterboard could cause the connector to partially disconnect (especially good to check if problems began after installation of the bluetooth module, for example).
+
 ## Troubles with t5577 commands or MFC/iClass/T55x7 dictionaries
 ^[Top](#top)
 
@@ -159,12 +165,12 @@ proxmark3 <YOUR_PORT_HERE> --flash --image /usr/local/share/proxmark3/firmware/f
 proxmark3 <YOUR_PORT_HERE> --flash --image /usr/share/proxmark3/firmware/fullimage.elf
 
 using the script:
-pm3 --> smart upgrade -f /usr/local/share/proxmark3/firmware/sim011.bin
+pm3 --> smart upgrade -f /usr/local/share/proxmark3/firmware/sim014.bin
 <>
-pm3 --> smart upgrade -f /usr/share/proxmark3/firmware/sim011.bin
+pm3 --> smart upgrade -f /usr/share/proxmark3/firmware/sim014.bin
 ```
 
-If you didn't install the PRoxmark but you're working from the sources directory and depending how you launch the client, your working directory might be the root of the repository:
+If you didn't install the Proxmark but you're working from the sources directory and depending how you launch the client, your working directory might be the root of the repository:
 
 ```
 ./pm3 ...
@@ -184,7 +190,7 @@ client/proxmark3 <YOUR_PORT_HERE> --flash --image armsrc/obj/fullimage.elf
 <>
 ./proxmark3 <YOUR_PORT_HERE> --flash --image ../armsrc/obj/fullimage.elf
 
-pm3 --> smart upgrade -f sim011.bin
+pm3 --> smart upgrade -f sim014.bin
 ```
 
 etc.
@@ -220,11 +226,34 @@ Try running it with
 ## libQt5Core.so.5 not found
 ^[Top](#top)
 
-On WSL1 / updated to Ubuntu 20.04,  there is a slight chance you experience problems when compiling the repo with QT5.
-The following steps is needed to make the development environment happy again.   
+On WSL1 / updated to Ubuntu 20.04 and 22.04,  there is a slight chance you experience problems when compiling the repo with QT5.
+The following steps are needed to make the development environment happy again.   
 ```
 sudo apt reinstall qtbase5-dev
 sudo strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
+```
+
+## bzlib.h: No such file or directory
+^[Top](#top)
+
+This particular issue occurs on Debian/Kali Linux when dependencies aren't installed appropriately; you need to install bzip2 developer (libbz2-dev on Debian-alike) package. Note that the name depends on the distro you're using. Review the [installation guide](https://github.com/RfidResearchGroup/proxmark3/blob/master/doc/md/Installation_Instructions/Linux-Installation-Instructions.md#on-debian--ubuntu--kali--parrotos--raspbian) for further instructions on how to set up your environment.
+
+Sample error output:
+```                                                                                          
+[-] CC src/cmdhfmfhard.c                                   
+src/cmdhfmfhard.c:34:10: fatal error: bzlib.h: No such file or directory                                                                                                                                                                     
+   34 | #include <bzlib.h>                                 
+      |          ^~~~~~~~~                                 
+compilation terminated.                                    
+make[1]: *** [Makefile:946: obj/cmdhfmfhard.o] Error 1                                                                
+make: *** [Makefile:177: client/all] Error 2                          
+```
+
+The following dependencies are currently needed to make the development environment compile:   
+```
+sudo apt-get install --no-install-recommends git ca-certificates build-essential pkg-config \
+libreadline-dev gcc-arm-none-eabi libnewlib-dev qtbase5-dev \
+libbz2-dev liblz4-dev libbluetooth-dev libpython3-dev libssl-dev
 ```
 
 ## target attribute is not supported on this machine
@@ -278,4 +307,57 @@ Try running the client without the SESSION_MANAGER environment variable.
 
 ```
 env -u SESSION_MANAGER ./pm3
+```
+
+## found architecture 'x86_64' required architecture 'arm64' error
+^[Top](#top)
+
+If you get the message  
+
+```
+warning: ignoring file '/usr/local/Cellar/jansson/2.14/lib/libjansson.4.dylib': found architecture 'x86_64', required architecture 'arm64'
+```
+
+when running
+```make clean && make -j```
+
+then it likely means you are on an ARM device, possibly an Apple ARM computer.
+
+Solution:
+
+```
+brew install jansson
+```
+Then run this again
+
+```
+make clean && make -j
+```
+
+## wrong permissions on runtime directory /run/user/1000
+^[Top](#top)
+
+If you get the message 
+
+```
+QStandardPaths: wrong permissions on runtime directory /run/user/1000, 0770 instead of 0700
+```
+
+when running 
+
+```
+tools/pm3_tests.sh --long
+```
+
+Solution: 
+
+Try set the XDG_RUNTIME_DIR environment variable. 
+ref:  https://stackoverflow.com/questions/60458596/standardpaths-wrong-ownership-on-runtime-directory-run-user-1000-1000-instead
+
+```
+export XDG_RUNTIME_DIR=/run/user/1000
+
+or
+
+export XDG_RUNTIME_DIR=/var/run/user/1000
 ```

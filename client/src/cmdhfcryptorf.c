@@ -93,6 +93,8 @@ static int CmdHFCryptoRFSniff(const char *Cmd) {
 
     clearCommandBuffer();
     SendCommandNG(CMD_HF_ISO14443B_SNIFF, NULL, 0);
+    PacketResponseNG resp;
+    WaitForResponse(CMD_HF_ISO14443B_SNIFF, &resp);
 
     PrintAndLogEx(HINT, "Try `" _YELLOW_("hf cryptorf list") "` to view captured tracelog");
     PrintAndLogEx(HINT, "Try `" _YELLOW_("trace save -f hf_cryptorf_mytrace") "` to save tracelog for later analysing");
@@ -116,15 +118,16 @@ static bool get_14b_UID(iso14b_card_select_t *card) {
         SendCommandNG(CMD_HF_ISO14443B_COMMAND, (uint8_t *)&packet, sizeof(iso14b_raw_cmd_t));
         PacketResponseNG resp;
         if (WaitForResponseTimeout(CMD_HF_ISO14443B_COMMAND, &resp, TIMEOUT)) {
-            if (resp.oldarg[0] == 0) {
+            if (resp.status == PM3_SUCCESS) {
                 memcpy(card, (iso14b_card_select_t *)resp.data.asBytes, sizeof(iso14b_card_select_t));
                 return true;
             }
         }
     } // retry
 
-    if (retry <= 0)
+    if (retry <= 0) {
         PrintAndLogEx(FAILED, "command execution timeout");
+    }
 
     return false;
 }
@@ -148,22 +151,20 @@ static int infoHFCryptoRF(bool verbose) {
         return false;
     }
 
-    iso14b_card_select_t card;
-    memcpy(&card, (iso14b_card_select_t *)resp.data.asBytes, sizeof(iso14b_card_select_t));
-
-    uint64_t status = resp.oldarg[0];
-
-    switch (status) {
-        case 0:
+    switch (resp.status) {
+        case PM3_SUCCESS: {
+            iso14b_card_select_t card;
+            memcpy(&card, (iso14b_card_select_t *)resp.data.asBytes, sizeof(iso14b_card_select_t));
             PrintAndLogEx(NORMAL, "");
             PrintAndLogEx(SUCCESS, " UID    : %s", sprint_hex(card.uid, card.uidlen));
             PrintAndLogEx(SUCCESS, " ATQB   : %s", sprint_hex(card.atqb, sizeof(card.atqb)));
             PrintAndLogEx(SUCCESS, " CHIPID : %02X", card.chipid);
             return PM3_SUCCESS;
-        case 2:
+        }
+        case PM3_ELENGTH:
             if (verbose) PrintAndLogEx(FAILED, "ISO 14443-3 ATTRIB fail");
             break;
-        case 3:
+        case PM3_ECRC:
             if (verbose) PrintAndLogEx(FAILED, "ISO 14443-3 CRC fail");
             break;
         default:
@@ -209,16 +210,16 @@ int readHFCryptoRF(bool loop, bool verbose) {
         PacketResponseNG resp;
         if (WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
 
-            uint8_t status = resp.oldarg[0] & 0xFF;
-
             if (loop) {
-                if (status != 0) {
+                if (resp.status != PM3_SUCCESS) {
                     continue;
                 }
             } else {
                 // when not in continuous mode
-                if (status != 0) {
-                    if (verbose) PrintAndLogEx(WARNING, "cryptoRF / ISO14443-b card select failed");
+                if (resp.status != PM3_SUCCESS) {
+                    if (verbose) {
+                        PrintAndLogEx(WARNING, "cryptoRF / ISO14443-b card select failed");
+                    }
                     res = PM3_EOPABORTED;
                     break;
                 }
@@ -282,12 +283,12 @@ static int CmdHFCryptoRFDump(const char *Cmd) {
     bool m512 = arg_get_lit(ctx, 3);
     CLIParserFree(ctx);
 
-    if (m512 + m64 > 1) {
+    if (m512 + m64 != 1) {
         PrintAndLogEx(INFO, "Select only one card memory size");
         return PM3_EINVARG;
     }
 
-    uint16_t cardsize = 0;
+    uint16_t cardsize;
     uint8_t blocks = 0;
     if (m64) {
         cardsize = (512 / 8) + 4;
@@ -322,11 +323,9 @@ static int CmdHFCryptoRFDump(const char *Cmd) {
     PacketResponseNG resp;
 
     // select
-    int status;
     if (WaitForResponseTimeout(CMD_HF_ISO14443B_COMMAND, &resp, 2000)) {
-        status = resp.oldarg[0];
-        if (status < 0) {
-            PrintAndLogEx(FAILED, "failed to select %" PRId64 "]", resp.oldarg[0]);
+        if (resp.status != PM3_SUCCESS) {
+            PrintAndLogEx(FAILED, "failed to select %d]", resp.status);
             free(packet);
             return switch_off_field_cryptorf();
         }
@@ -350,13 +349,12 @@ static int CmdHFCryptoRFDump(const char *Cmd) {
         SendCommandNG(CMD_HF_ISO14443B_COMMAND, (uint8_t *)&packet, sizeof(iso14b_raw_cmd_t) + 2);
         if (WaitForResponseTimeout(CMD_HF_ISO14443B_COMMAND, &resp, 2000)) {
 
-            status = resp.oldarg[0];
-            if (status < 0) {
+            if (resp.status != PM3_SUCCESS) {
                 PrintAndLogEx(FAILED, "retrying one more time");
                 continue;
             }
 
-            uint16_t len = (resp.oldarg[1] & 0xFFFF);
+            uint16_t len = resp.length;
             uint8_t *recv = resp.data.asBytes;
 
             if (check_crc(CRC_14443_B, recv, len) == false) {
@@ -410,14 +408,12 @@ static int CmdHFCryptoRFDump(const char *Cmd) {
 
     if (fnlen < 1) {
         PrintAndLogEx(INFO, "Using UID as filename");
-        char *fptr = filename;
-        fptr += sprintf(fptr, "hf-cryptorf-");
+        char *fptr = filename + snprintf(filename, sizeof(filename), "hf-cryptorf-");
         FillFileNameByUID(fptr, card.uid, "-dump", card.uidlen);
     }
 
-    saveFileEML(filename, data, datalen, 4);
-    saveFile(filename, ".bin", data, datalen);
-    // json?
+    pm3_save_dump(filename, data, datalen, jsfCryptorf);
+
     return switch_off_field_cryptorf();
 }
 
@@ -425,13 +421,13 @@ static int CmdHFCryptoRFELoad(const char *Cmd) {
 
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf cryptorf eload",
-                  "Loads CryptoRF tag dump into emulator memory on device",
+                  "Loads CryptoRF tag dump (bin/eml/json) into emulator memory on device",
                   "hf cryptorf eload -f hf-cryptorf-0102030405-dump.bin\n"
                  );
 
     void *argtable[] = {
         arg_param_begin,
-        arg_str1("f", "file", "<fn>", "filename of dump"),
+        arg_str1("f", "file", "<fn>", "Specify a filename for dump file"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
@@ -448,7 +444,7 @@ static int CmdHFCryptoRFELoad(const char *Cmd) {
     size_t datalen = CRYPTORF_MEM_SIZE;
     // set up buffer
     uint8_t *data = calloc(datalen, sizeof(uint8_t));
-    if (!data) {
+    if (data == NULL) {
         PrintAndLogEx(WARNING, "Fail, cannot allocate memory");
         return PM3_EMALLOC;
     }
@@ -479,7 +475,7 @@ static int CmdHFCryptoRFELoad(const char *Cmd) {
     }
     */
     free(data);
-    PrintAndLogEx(SUCCESS, "sent %d bytes of data to device emulator memory", bytes_sent);
+    PrintAndLogEx(SUCCESS, "sent " _YELLOW_("%d") " bytes of data to device emulator memory", bytes_sent);
     return PM3_SUCCESS;
 }
 
@@ -487,14 +483,14 @@ static int CmdHFCryptoRFESave(const char *Cmd) {
 
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf cryptorf esave",
-                  "Save emulator memory to bin/eml/json file\n"
+                  "Save emulator memory to file (bin/json)\n"
                   "if filename is not supplied, UID will be used.",
                   "hf cryptorf esave\n"
                   "hf cryptorf esave -f filename"
                  );
     void *argtable[] = {
         arg_param_begin,
-        arg_str0("f", "file", "<fn>", "filename of dumpfile"),
+        arg_str0("f", "file", "<fn>", "Specify a filename for dump file"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -524,16 +520,11 @@ static int CmdHFCryptoRFESave(const char *Cmd) {
     // user supplied filename?
     if (fnlen < 1) {
         PrintAndLogEx(INFO, "Using UID as filename");
-        char *fptr = filename;
-        fptr += sprintf(fptr, "hf-cryptorf-");
+        char *fptr = filename + snprintf(filename, sizeof(filename), "hf-cryptorf-");
         FillFileNameByUID(fptr, data, "-dump", 4);
     }
 
-    saveFile(filename, ".bin", data, numofbytes);
-    //needs to change
-    saveFileEML(filename, data, numofbytes, 8);
-    //needs to change
-    saveFileJSON(filename, jsfRaw, data, numofbytes, NULL);
+    pm3_save_dump(filename, data, numofbytes, jsfCryptorf);
     free(data);
     return PM3_SUCCESS;
 }
@@ -546,8 +537,8 @@ static command_t CommandTable[] = {
     {"reader",  CmdHFCryptoRFReader,  IfPm3Iso14443b,  "Act as a CryptoRF reader to identify a tag"},
     {"sim",     CmdHFCryptoRFSim,     IfPm3Iso14443b,  "Fake CryptoRF tag"},
     {"sniff",   CmdHFCryptoRFSniff,   IfPm3Iso14443b,  "Eavesdrop CryptoRF"},
-    {"eload",   CmdHFCryptoRFELoad,   AlwaysAvailable, "Load binary dump to emulator memory"},
-    {"esave",   CmdHFCryptoRFESave,   AlwaysAvailable, "Save emulator memory to binary file"},
+    {"eload",   CmdHFCryptoRFELoad,   AlwaysAvailable, "Upload file into emulator memory"},
+    {"esave",   CmdHFCryptoRFESave,   AlwaysAvailable, "Save emulator memory to file"},
     {NULL, NULL, NULL, NULL}
 };
 
@@ -561,4 +552,3 @@ int CmdHFCryptoRF(const char *Cmd) {
     clearCommandBuffer();
     return CmdsParse(CommandTable, Cmd);
 }
-

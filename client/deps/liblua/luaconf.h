@@ -10,9 +10,6 @@
 
 #if defined(__APPLE__)
 #include "TargetConditionals.h"
-#if TARGET_OS_IOS || TARGET_OS_WATCH || TARGET_OS_TV
-#define system(s) ((s)==NULL ? 0 : -1)
-#endif // end iOS
 #endif
 
 #include <limits.h>
@@ -333,7 +330,7 @@
 
 
 /*
-@@ LUA_INT32 is an signed integer with exactly 32 bits.
+@@ LUA_INT32 is a signed integer with exactly 32 bits.
 @@ LUAI_UMEM is an unsigned integer big enough to count the total
 @* memory used by Lua.
 @@ LUAI_MEM is a signed integer big enough to count the total memory
@@ -357,7 +354,7 @@
 /*
 @@ LUAI_MAXSTACK limits the size of the Lua stack.
 ** CHANGE it if you need a different limit. This limit is arbitrary;
-** its only purpose is to stop Lua to consume unlimited stack
+** its only purpose is to stop Lua from consuming unlimited stack
 ** space (and to reserve some numbers for pseudo-indices).
 */
 #if LUAI_BITSINT >= 32
@@ -408,7 +405,7 @@
 */
 #define LUA_NUMBER_SCAN "%lf"
 #define LUA_NUMBER_FMT "%.14g"
-#define lua_number2str(s,n) sprintf((s), LUA_NUMBER_FMT, (n))
+#define lua_number2str(s,l,n) snprintf((s), (l), LUA_NUMBER_FMT, (n))
 #define LUAI_MAXNUMBER2STR 32 /* 16 digits, sign, point, and \0 */
 
 

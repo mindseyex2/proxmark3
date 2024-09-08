@@ -27,7 +27,7 @@
 #elif defined(HAVE_LINENOISE)
 #include "linenoise.h"
 #endif
-#include "pm3line_vocabulory.h"
+#include "pm3line_vocabulary.h"
 #include "pm3_cmd.h"
 #include "ui.h"                          // g_session
 #include "util.h"                        // str_ndup
@@ -45,12 +45,12 @@ static char *rl_command_generator(const char *text, int state) {
         len = strlen(text);
     }
 
-    while ((command = vocabulory[index].name))  {
+    while ((command = vocabulary[index].name))  {
 
         // When no pm3 device present
         // and the command is not available offline,
         // we skip it.
-        if ((g_session.pm3_present == false) && (vocabulory[index].offline == false))  {
+        if ((g_session.pm3_present == false) && (vocabulary[index].offline == false))  {
             index++;
             continue;
         }
@@ -82,12 +82,12 @@ static void ln_command_completion(const char *text, linenoiseCompletions *lc) {
     size_t prev_match_len = 0;
     size_t len = strlen(text);
     const char *command;
-    while ((command = vocabulory[index].name))  {
+    while ((command = vocabulary[index].name))  {
 
         // When no pm3 device present
         // and the command is not available offline,
         // we skip it.
-        if ((g_session.pm3_present == false) && (vocabulory[index].offline == false))  {
+        if ((g_session.pm3_present == false) && (vocabulary[index].offline == false))  {
             index++;
             continue;
         }
@@ -123,10 +123,20 @@ static bool WINAPI terminate_handler(DWORD t) {
 #  else
 static struct sigaction gs_old_sigint_action;
 static void sigint_handler(int signum) {
-    sigaction(SIGINT, &gs_old_sigint_action, NULL);
-    pm3line_flush_history();
-    kill(0, SIGINT);
+
+    switch (signum) {
+        case SIGINT: {
+            sigaction(SIGINT, &gs_old_sigint_action, NULL);
+            pm3line_flush_history();
+            kill(0, SIGINT);
+            break;
+        }
+        default: {
+            break;
+        }
+    }
 }
+
 #endif
 
 void pm3line_install_signals(void) {
@@ -138,6 +148,7 @@ void pm3line_install_signals(void) {
     action.sa_handler = &sigint_handler;
     sigaction(SIGINT, &action, &gs_old_sigint_action);
 #  endif
+
 #if defined(HAVE_READLINE)
     rl_catch_signals = 1;
     rl_set_signals();
@@ -150,6 +161,14 @@ void pm3line_init(void) {
     using_history();
     rl_readline_name = "PM3";
     rl_attempted_completion_function = rl_command_completion;
+
+// don't hook signal in MINGW
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#else
+    rl_getc_function = getc;
+#endif
+
+    pm3line_install_signals();
 
 #ifdef RL_STATE_READCMD
     rl_extend_line_buffer(1024);

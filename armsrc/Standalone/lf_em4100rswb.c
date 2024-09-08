@@ -62,7 +62,7 @@
 #endif
 
 #define LF_CLOCK 64 // for 125kHz
-#define LF_RWSB_T55XX_TYPE 1 // Tag type: 0 - T5555, 1-T55x7
+#define LF_RWSB_T55XX_TYPE 1 // Tag type: 0 - T5555, 1-T55x7, 2-EM4x05
 
 #define LF_RWSB_UNKNOWN_RESULT 0
 #define LF_RWSB_BRUTE_STOPED 1
@@ -284,7 +284,13 @@ static int ExecuteMode(int mode, int slot) {
             return LF_RWSB_UNKNOWN_RESULT;
         case LF_RWSB_MODE_WRITE:
             Dbprintf("[!!] >>  Write mode started  <<");
-            copy_em410x_to_t55xx(LF_RWSB_T55XX_TYPE, LF_CLOCK, (uint32_t)(em4100rswb_low[slot] >> 32), (uint32_t)(em4100rswb_low[slot] & 0xffffffff), true);
+            copy_em410x_to_t55xx(LF_RWSB_T55XX_TYPE
+                                 , LF_CLOCK
+                                 , (uint32_t)(em4100rswb_low[slot] >> 32)
+                                 , (uint32_t)(em4100rswb_low[slot] & 0xffffffff)
+                                 , false
+                                 , true
+                                );
             return LF_RWSB_UNKNOWN_RESULT;
         case LF_RWSB_MODE_BRUTE:
             Dbprintf("[=] >>  Bruteforce mode started  <<");

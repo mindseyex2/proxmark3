@@ -204,19 +204,23 @@ static int CmdFlashMemLoad(const char *Cmd) {
     size_t datalen = 0;
     uint32_t keycount = 0;
     int res = 0;
+    uint8_t keylen = 0;
     uint8_t *data = calloc(FLASH_MEM_MAX_SIZE, sizeof(uint8_t));
 
     switch (d) {
         case DICTIONARY_MIFARE:
             offset = DEFAULT_MF_KEYS_OFFSET;
-            res = loadFileDICTIONARY(filename, data + 2, &datalen, 6, &keycount);
+            keylen = 6;
+            res = loadFileDICTIONARY(filename, data + 2, &datalen, keylen, &keycount);
             if (res || !keycount) {
                 free(data);
                 return PM3_EFILE;
             }
             // limited space on flash mem
-            if (keycount > 0xFFFF)
-                keycount &= 0xFFFF;
+            if (keycount > DEFAULT_MF_KEYS_MAX) {
+                keycount = DEFAULT_MF_KEYS_MAX;
+                datalen = keycount * keylen;
+            }
 
             data[0] = (keycount >> 0) & 0xFF;
             data[1] = (keycount >> 8) & 0xFF;
@@ -224,14 +228,17 @@ static int CmdFlashMemLoad(const char *Cmd) {
             break;
         case DICTIONARY_T55XX:
             offset = DEFAULT_T55XX_KEYS_OFFSET;
-            res = loadFileDICTIONARY(filename, data + 2, &datalen, 4, &keycount);
+            keylen = 4;
+            res = loadFileDICTIONARY(filename, data + 2, &datalen, keylen, &keycount);
             if (res || !keycount) {
                 free(data);
                 return PM3_EFILE;
             }
             // limited space on flash mem
-            if (keycount > 0xFFFF)
-                keycount &= 0xFFFF;
+            if (keycount > DEFAULT_T55XX_KEYS_MAX) {
+                keycount = DEFAULT_T55XX_KEYS_MAX;
+                datalen = keycount * keylen;
+            }
 
             data[0] = (keycount >> 0) & 0xFF;
             data[1] = (keycount >> 8) & 0xFF;
@@ -239,14 +246,16 @@ static int CmdFlashMemLoad(const char *Cmd) {
             break;
         case DICTIONARY_ICLASS:
             offset = DEFAULT_ICLASS_KEYS_OFFSET;
-            res = loadFileDICTIONARY(filename, data + 2, &datalen, 8, &keycount);
+            res = loadFileDICTIONARY(filename, data + 2, &datalen, keylen, &keycount);
             if (res || !keycount) {
                 free(data);
                 return PM3_EFILE;
             }
             // limited space on flash mem
-            if (keycount > 0xFFFF)
-                keycount &= 0xFFFF;
+            if (keycount > DEFAULT_ICLASS_KEYS_MAX) {
+                keycount = DEFAULT_ICLASS_KEYS_MAX;
+                datalen = keycount * keylen;
+            }
 
             data[0] = (keycount >> 0) & 0xFF;
             data[1] = (keycount >> 8) & 0xFF;
@@ -266,7 +275,8 @@ static int CmdFlashMemLoad(const char *Cmd) {
             }
             break;
     }
-// not needed when we transite to loadxxxx_safe methods.(iceman)
+
+    // ICEMAN: not needed when we transite to loadxxxx_safe methods
     uint8_t *newdata = realloc(data, datalen);
     if (newdata == NULL) {
         free(data);
@@ -369,8 +379,7 @@ static int CmdFlashMemDump(const char *Cmd) {
     }
 
     if (filename[0] != '\0') {
-        saveFile(filename, ".bin", dump, len);
-        saveFileEML(filename, dump, len, 16);
+        pm3_save_dump(filename, dump, len, jsfRaw);
     }
 
     free(dump);
@@ -459,7 +468,11 @@ static int CmdFlashMemInfo(const char *Cmd) {
 //    shall_write = arg_get_lit(ctx, 5);
     CLIParserFree(ctx);
 
-    if (res || (dlen > 0 && dlen < sizeof(id))) {
+    if (res) {
+        return PM3_EINVARG;
+    }
+
+    if (dlen > 0 && dlen < sizeof(id)) {
         PrintAndLogEx(FAILED, "Error parsing flash memory id, expect 8, got %d", dlen);
         return PM3_EINVARG;
     }
@@ -585,7 +598,7 @@ static int CmdFlashMemInfo(const char *Cmd) {
         PrintAndLogEx(
             (is_keyok) ? SUCCESS : FAILED,
             "RDV4 RSA private key check... ( %s )",
-            (is_keyok) ?  _GREEN_("ok") : _YELLOW_("N/A")
+            (is_keyok) ?  _GREEN_("ok") : _YELLOW_("n/aA")
         );
     }
 
@@ -631,6 +644,11 @@ static int CmdFlashMemInfo(const char *Cmd) {
 
     // Verify (public key)
     bool is_verified = (mbedtls_rsa_pkcs1_verify(rsa, NULL, NULL, MBEDTLS_RSA_PUBLIC, MBEDTLS_MD_SHA1, 20, sha_hash, from_device) == 0);
+
+    if (got_private == false) {
+        mbedtls_rsa_free(rsa);
+        free(rsa);
+    }
 
     mbedtls_pk_free(&pkctx);
 

@@ -48,13 +48,13 @@ jobs:
         working-directory: C:\ProxSpace
         run: ./runme64.bat -c "exit"
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: make clean
         run: make clean
 
       - name: Build
-        run: make V=1
+        run: make -j $([System.Environment]::ProcessorCount + 1) V=1
 
       - name: Test
         run: make check
@@ -63,7 +63,7 @@ jobs:
         run: make clean
 
       - name: Build btaddon
-        run: make V=1 PLATFORM_EXTRAS=BTADDON
+        run: make -j $([System.Environment]::ProcessorCount + 1) V=1 PLATFORM_EXTRAS=BTADDON
 
       - name: Test btaddon
         run: make check
@@ -84,7 +84,7 @@ jobs:
         working-directory: client/build/
 
       - name: Build cmake
-        run: make VERBOSE=1
+        run: make -j $([System.Environment]::ProcessorCount + 1) VERBOSE=1
         working-directory: client/build/
 
       - name: Test cmake
@@ -98,9 +98,9 @@ jobs:
 
     steps:
       - name: WSL setup
-        uses: Vampire/setup-wsl@v1
+        uses: Vampire/setup-wsl@v3
         with:
-          distribution: Ubuntu-20.04
+          distribution: Ubuntu-22.04
           update: "true"
           additional-packages: git
             ca-certificates
@@ -110,6 +110,7 @@ jobs:
             gcc-arm-none-eabi
             libnewlib-dev
             libbz2-dev
+            liblz4-dev
             qtbase5-dev
             cmake
             libpython3-dev
@@ -118,6 +119,7 @@ jobs:
             python3-dev
             libpython3-all-dev
             libssl-dev
+            libgd-dev
 
       - name: Install Python dependencies
         run: |
@@ -134,13 +136,13 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: make clean
         run: make clean
 
       - name: Build
-        run: make V=1
+        run: make -j$((`nproc` + 1)) V=1
 
       - name: Test
         run: make check
@@ -149,7 +151,7 @@ jobs:
         run: make clean
 
       - name: Build btaddon
-        run: make V=1 PLATFORM_EXTRAS=BTADDON
+        run: make -j$((`nproc` + 1)) V=1 PLATFORM_EXTRAS=BTADDON
 
       - name: Test btaddon
         run: make check
@@ -170,7 +172,7 @@ jobs:
         working-directory: client/build/
 
       - name: Build cmake
-        run: make VERBOSE=1
+        run: make -j$((`nproc` + 1)) VERBOSE=1
         working-directory: client/build/
 
       - name: Test cmake

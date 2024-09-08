@@ -61,7 +61,7 @@ void RunMod(void) {
                 break;
             else if (state == STATE_READ) {
                 Iso15693InitReader();
-                ReaderIso15693(0, &card);
+                ReaderIso15693(&card);
 
                 if (card.uidlen == 0) {
                     LED_D_OFF();
@@ -74,8 +74,10 @@ void RunMod(void) {
                 }
             } else if (state == STATE_EMUL) {
                 Iso15693InitTag();
-                Dbprintf("Starting simulation, press pm3-button to stop and go back to search state.");
-                SimTagIso15693(card.uid);
+                Dbprintf("Starting simulation, press " _GREEN_("pm3 button") " to stop and go back to search state.");
+                // default block size is 4..
+                // iceman:  which can be 4,8 all the way to 32
+                SimTagIso15693(card.uid, 4);
 
                 state = STATE_READ;
             }

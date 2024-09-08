@@ -23,7 +23,14 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifdef _WIN32
+#define ABOVE "../"
 #define PATHSEP "/"
+#else
+#define ABOVE "../"
+#define PATHSEP "/"
+#endif
+
 // PM3 share path relative to executable when installed
 #define PM3_SHARE_RELPATH    ".." PATHSEP "share" PATHSEP "proxmark3" PATHSEP
 
@@ -53,7 +60,7 @@ struct version_information_t {
     char clean; /* 1: Tree was clean, no local changes. 0: Tree was unclean. 2: Couldn't be determined */
     char gitversion[50]; /* String with the git revision */
     char buildtime[30]; /* string with the build time */
-    char armsrc[10]; /* sha256sum of sha256sum of armsrc files */
+    char armsrc[10]; /* sha256sum of sha256sum of armsrc && common_arm files */
 } PACKED;
 
 // debug
@@ -120,6 +127,17 @@ extern bool g_tearoff_enabled;
 #endif
 #endif
 
+// endian change for 48bit
+#ifndef BSWAP_48
+#define BSWAP_48(x) \
+     (((uint64_t)(x) << 40) & 0x0000ff0000000000ULL) | \
+     (((uint64_t)(x) << 24) & 0x000000ff00000000ULL) | \
+     (((uint64_t)(x) << 8)  & 0x00000000ff000000ULL) | \
+     (((uint64_t)(x) >> 8)  & 0x000000000ff0000ULL) | \
+     (((uint64_t)(x) >> 24) & 0x00000000000ff00ULL) | \
+     (((uint64_t)(x) >> 40) & 0x0000000000000ffULL)
+#endif
+
 // endian change for 32bit
 #ifdef __GNUC__
 #ifndef BSWAP_32
@@ -141,16 +159,16 @@ extern bool g_tearoff_enabled;
 
 // convert 2 bytes to U16 in little endian
 #ifndef BYTES2UINT16
-# define BYTES2UINT16(x) ((x[1] << 8) | (x[0]))
+# define BYTES2UINT16(x) (((x)[1] << 8) | ((x)[0]))
 #endif
 // convert 4 bytes to U32 in little endian
 #ifndef BYTES2UINT32
-# define BYTES2UINT32(x) ((x[3] << 24) | (x[2] << 16) | (x[1] << 8) | (x[0]))
+# define BYTES2UINT32(x) (((x)[3] << 24) | ((x)[2] << 16) | ((x)[1] << 8) | ((x)[0]))
 #endif
 
 // convert 4 bytes to U32 in big endian
 #ifndef BYTES2UINT32_BE
-# define BYTES2UINT32_BE(x) ((x[0] << 24) | (x[1] << 16) | (x[2] << 8) | (x[3]))
+# define BYTES2UINT32_BE(x) (((x)[0] << 24) | ((x)[1] << 16) | ((x)[2] << 8) | ((x)[3]))
 #endif
 
 
@@ -167,7 +185,7 @@ extern bool g_tearoff_enabled;
 #endif
 
 #ifndef CRUMB
-# define CRUMB(b,p)    (((b & (0x3 << p) ) >> p ) & 0xF)
+# define CRUMB(b,p)    ((((b) & (0x3 << (p)) ) >> (p) ) & 0xF)
 #endif
 
 #ifndef SWAP_NIBBLE
@@ -176,17 +194,34 @@ extern bool g_tearoff_enabled;
 
 // Binary Encoded Digit
 #ifndef BCD2DEC
-# define BCD2DEC(bcd) HornerScheme(bcd, 0x10, 10)
+# define BCD2DEC(bcd) HornerScheme((bcd), 0x10, 10)
 #endif
 
 #ifndef DEC2BCD
-# define DEC2BCD(dec) HornerScheme(dec, 10, 0x10)
+# define DEC2BCD(dec) HornerScheme((dec), 10, 0x10)
 #endif
 
 // bit stream operations
-#define TEST_BIT(data, i) (*(data + (i / 8)) >> (7 - (i % 8))) & 1
-#define SET_BIT(data, i)   *(data + (i / 8)) |= (1 << (7 - (i % 8)))
-#define CLEAR_BIT(data, i) *(data + (i / 8)) &= ~(1 << (7 - (i % 8)))
-#define FLIP_BIT(data, i)  *(data + (i / 8)) ^= (1 << (7 - (i % 8)))
+#define TEST_BIT(data, i) (*((data) + ((i) / 8)) >> (7 - ((i) % 8))) & 1
+#define SET_BIT(data, i)   *((data) + ((i) / 8)) |= (1 << (7 - ((i) % 8)))
+#define CLEAR_BIT(data, i) *((data) + ((i) / 8)) &= ~(1 << (7 - ((i) % 8)))
+#define FLIP_BIT(data, i)  *((data) + ((i) / 8)) ^= (1 << (7 - ((i) % 8)))
+
+// time for decompressing and loading the image to the FPGA
+#define FPGA_LOAD_WAIT_TIME (1500)
+
+// GCC extension
+// from client/deps/tinycbor/compilersupport_p.h
+#ifdef __GNUC__
+#ifndef likely
+#  define likely(x)     __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+#  define unlikely(x)   __builtin_expect(!!(x), 0)
+#endif
+#else
+#  define likely(x)     (x)
+#  define unlikely(x)   (x)
+#endif
 
 #endif

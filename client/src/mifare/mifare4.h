@@ -20,6 +20,7 @@
 #define MIFARE4_H
 
 #include "common.h"
+#include <stdbool.h>
 
 typedef struct {
     bool Authenticated;
@@ -59,26 +60,29 @@ void mfpSetVerboseMode(bool verbose);
 const char *mfpGetErrorDescription(uint8_t errorCode);
 
 int CalculateMAC(mf4Session_t *mf4session, MACType_t mtype, uint8_t blockNum, uint8_t blockCount, uint8_t *data, int datalen, uint8_t *mac, bool verbose);
-int MifareAuth4(mf4Session_t *mf4session, uint8_t *keyn, uint8_t *key, bool activateField, bool leaveSignalON, bool dropFieldIfError, bool verbose, bool silentMode);
+int MifareAuth4(mf4Session_t *mf4session, const uint8_t *keyn, uint8_t *key, bool activateField, bool leaveSignalON, bool dropFieldIfError, bool verbose, bool silentMode);
 
-int MFPWritePerso(uint8_t *keyNum, uint8_t *key, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen);
+int MFPWritePerso(const uint8_t *keyNum, const uint8_t *key, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen);
 int MFPCommitPerso(bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen);
-int MFPReadBlock(mf4Session_t *mf4session, bool plain, uint8_t blockNum, uint8_t blockCount, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen, uint8_t *mac);
-int MFPWriteBlock(mf4Session_t *mf4session, uint8_t blockNum, uint8_t *data, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen, uint8_t *mac);
+int MFPReadBlock(mf4Session_t *mf4session, bool plain, bool nomaccmd, bool nomacres, uint8_t blockNum, uint8_t blockCount, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen, uint8_t *mac);
+int MFPWriteBlock(mf4Session_t *mf4session, bool plain, bool nomacres, uint8_t blockNum, uint8_t blockHdr, const uint8_t *data, bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen, uint8_t *mac);
 int mfpReadSector(uint8_t sectorNo, uint8_t keyType, uint8_t *key, uint8_t *dataout, bool verbose);
 
 int MFPGetSignature(bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen);
 int MFPGetVersion(bool activateField, bool leaveSignalON, uint8_t *dataout, int maxdataoutlen, int *dataoutlen);
 
 bool mfValidateAccessConditions(const uint8_t *data);
+bool mfReadOnlyAccessConditions(uint8_t blockn, const uint8_t *data);
 const char *mfGetAccessConditionsDesc(uint8_t blockn, const uint8_t *data);
+uint8_t mf_get_accesscondition(uint8_t blockn, const uint8_t *data);
 
 uint8_t mfNumBlocksPerSector(uint8_t sectorNo);
 uint8_t mfFirstBlockOfSector(uint8_t sectorNo);
 uint8_t mfSectorTrailerOfSector(uint8_t sectorNo);
-uint8_t mfSectorTrailer(uint8_t blockNo);
-bool mfIsSectorTrailer(uint8_t blockNo);
-uint8_t mfSectorNum(uint8_t blockNo);
+uint8_t mfSectorTrailer(uint16_t blockNo);
+bool mfIsSectorTrailer(uint16_t blockNo);
+bool mfIsSectorTrailerBasedOnBlocks(uint8_t sectorno, uint16_t blockno);
+uint8_t mfSectorNum(uint16_t blockNo);
 
 
 #endif // mifare4.h

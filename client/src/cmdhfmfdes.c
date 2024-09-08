@@ -18,12 +18,10 @@
 // Code heavily modified by B.Kerler :)
 
 #include "cmdhfmfdes.h"
-
 #include <stdio.h>
 #include <string.h>
-
-#include "commonutil.h"  // ARRAYLEN
-#include "cmdparser.h"    // command_t
+#include "commonutil.h"             // ARRAYLEN
+#include "cmdparser.h"              // command_t
 #include "comms.h"
 #include "ui.h"
 #include "cmdhf14a.h"
@@ -32,16 +30,16 @@
 #include "protocols.h"
 #include "cmdtrace.h"
 #include "cliparser.h"
-#include "iso7816/apduinfo.h"   // APDU manipulation / errorcodes
+#include "iso7816/apduinfo.h"       // APDU manipulation / errorcodes
 #include "iso7816/iso7816core.h"    // APDU logging
-#include "util_posix.h"     // msleep
+#include "util_posix.h"             // msleep
 #include "mifare/desfirecore.h"
 #include "mifare/desfiretest.h"
 #include "mifare/desfiresecurechan.h"
-#include "mifare/mifaredefault.h"  // default keys
+#include "mifare/mifaredefault.h"   // default keys
 #include "crapto1/crapto1.h"
 #include "fileutils.h"
-#include "nfc/ndef.h"           // NDEF
+//#include "nfc/ndef.h"               // NDEF
 #include "mifare/mad.h"
 #include "mifare/mifaredefault.h"
 #include "generator.h"
@@ -51,7 +49,7 @@
 #define MAX_KEY_LEN        24
 #define MAX_KEYS_LIST_LEN  1024
 
-#define status(x) ( ((uint16_t)(0x91<<8)) + (uint16_t)x )
+#define status(x) ( ((uint16_t)(0x91 << 8)) + (uint16_t)x )
 /*
 static uint8_t desdefaultkeys[3][8] = {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, //Official
     {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47},
@@ -146,8 +144,19 @@ typedef enum {
     DESFIRE_EV3,
     DESFIRE_LIGHT,
     PLUS_EV1,
+    PLUS_EV2,
     NTAG413DNA,
+    NTAG424,
 } nxp_cardtype_t;
+
+typedef enum {
+    DESFIRE_UNKNOWN_PROD = 0,
+    DESFIRE_PHYSICAL,
+    DESFIRE_LIGHT_PHYSICAL,
+    DESFIRE_MICROCONTROLLER,
+    DESFIRE_JAVACARD,
+    DESFIRE_HCE,
+} nxp_producttype_t;
 
 typedef struct dfname {
     uint8_t aid[3];
@@ -237,33 +246,65 @@ static char *getProtocolStr(uint8_t id, bool hw) {
     return buf;
 }
 
-static char *getVersionStr(uint8_t major, uint8_t minor) {
+static char *getVersionStr(uint8_t type, uint8_t major, uint8_t minor) {
 
     static char buf[40] = {0x00};
     char *retStr = buf;
 
-    if (major == 0x00)
+    if (type == 0x01 && major == 0x00)
         snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire MF3ICD40") " )", major, minor);
-    else if (major == 0x01 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV1") " )", major, minor);
-    else if (major == 0x12 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2") " )", major, minor);
-    else if (major == 0x22 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2 XL") " )", major, minor);
-    else if (major == 0x42 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2") " )", major, minor);
-    else if (major == 0x33 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV3") " )", major, minor);
-    else if (major == 0x30 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire Light") " )", major, minor);
     else if (major == 0x10 && minor == 0x00)
         snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("NTAG413DNA") " )", major, minor);
+    else if (type == 0x01 && major == 0x01 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV1") " )", major, minor);
+    else if (type == 0x01 && major == 0x12 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2") " )", major, minor);
+    else if (type == 0x01 && major == 0x22 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2 XL") " )", major, minor);
+    else if (type == 0x01 && major == 0x42 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV2") " )", major, minor);
+    else if (type == 0x01 && major == 0x33 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire EV3") " )", major, minor);
+    else if (type == 0x01 && major == 0x30 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("DESFire Light") " )", major, minor);
+    else if (type == 0x02 && major == 0x11 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("Plus EV1") " )", major, minor);
+    else if (type == 0x02 && major == 0x22 && minor == 0x00)
+        snprintf(retStr, sizeof(buf), "%x.%x ( " _GREEN_("Plus EV2") " )", major, minor);
     else
         snprintf(retStr, sizeof(buf), "%x.%x ( " _YELLOW_("Unknown") " )", major, minor);
     return buf;
 
 //04 01 01 01 00 1A 05
 }
+
+static char *getTypeStr(uint8_t type) {
+
+    static char buf[40] = {0x00};
+    char *retStr = buf;
+
+    switch (type) {
+        case 0x01:
+            snprintf(retStr, sizeof(buf), "0x%02X ( " _YELLOW_("DESFire") " )", type);
+            break;
+        case 0x02:
+            snprintf(retStr, sizeof(buf), "0x%02X ( " _YELLOW_("Plus") " )", type);
+            break;
+        case 0x03:
+            snprintf(retStr, sizeof(buf), "0x%02X ( " _YELLOW_("Ultralight") " )", type);
+            break;
+        case 0x04:
+            snprintf(retStr, sizeof(buf), "0x%02X ( " _YELLOW_("NTAG") " )", type);
+            break;
+        case 0x81:
+            snprintf(retStr, sizeof(buf), "0x%02X ( " _YELLOW_("Smartcard") " )", type);
+            break;
+        default:
+            break;
+    }
+    return buf;
+}
+
 
 static char noCommentStr[1] = { 0x00 };
 static const char *getAidCommentStr(uint8_t *aid) {
@@ -275,33 +316,93 @@ static const char *getAidCommentStr(uint8_t *aid) {
     return noCommentStr;
 }
 
-static nxp_cardtype_t getCardType(uint8_t major, uint8_t minor) {
+static nxp_cardtype_t getCardType(uint8_t type, uint8_t major, uint8_t minor) {
 
-    if (major == 0x00)
+    // DESFire MF3ICD40
+    if (type == 0x01 && major == 0x00 && minor == 0x02)
         return DESFIRE_MF3ICD40;
-    if (major == 0x01 && minor == 0x00)
+
+    // DESFire EV1
+    if (type == 0x01 && major == 0x01 && minor == 0x00)
         return DESFIRE_EV1;
-    if (major == 0x12 && minor == 0x00)
+
+    // DESFire EV2
+    if (type == 0x01 && major == 0x12 && minor == 0x00)
         return DESFIRE_EV2;
-    if (major == 0x22 && minor == 0x00)
+
+    if (type == 0x01 && major == 0x22 && minor == 0x00)
         return DESFIRE_EV2_XL;
-    if (major == 0x42 && minor == 0x00)
-        return DESFIRE_EV2;
-    if (major == 0x33 && minor == 0x00)
+
+    // DESFire EV3
+    if (type == 0x01 && major == 0x33 && minor == 0x00)
         return DESFIRE_EV3;
-    if (major == 0x30 && minor == 0x00)
+
+    // DESFire Light
+    if (type == 0x08 && major == 0x30 && minor == 0x00)
         return DESFIRE_LIGHT;
-    if (major == 0x11 && minor == 0x00)
+
+    // combo card DESFire / EMV
+    if (type == 0x81 && major == 0x42 && minor == 0x00)
+        return DESFIRE_EV2;
+
+    // Plus EV1
+    if (type == 0x02 && major == 0x11 && minor == 0x00)
         return PLUS_EV1;
+
+    // Plus Ev2
+    if (type == 0x02 && major == 0x22 && minor == 0x00)
+        return PLUS_EV2;
+
+    // NTAG 413 DNA
     if (major == 0x10 && minor == 0x00)
         return NTAG413DNA;
+
+    // NTAG 424
+    if (type == 0x04 && major == 0x30 && minor == 0x00)
+        return NTAG424;
+
     return DESFIRE_UNKNOWN;
 }
 
-static int mfdes_get_info(mfdes_info_res_t *info) {
-    SendCommandNG(CMD_HF_DESFIRE_INFO, NULL, 0);
-    PacketResponseNG resp;
+// ref:  https://www.nxp.com/docs/en/application-note/AN12343.pdf  p7
+static nxp_producttype_t getProductType(const uint8_t *versionhw) {
 
+    uint8_t product = versionhw[2];
+
+    if (product == 0x01)
+        return DESFIRE_PHYSICAL;
+    if (product == 0x08)
+        return DESFIRE_LIGHT_PHYSICAL;
+    if (product == 0x81 || product == 0x83)
+        return DESFIRE_MICROCONTROLLER;
+    if (product == 0x91)
+        return DESFIRE_JAVACARD;
+    if (product == 0xA1)
+        return DESFIRE_HCE;
+    return DESFIRE_UNKNOWN_PROD;
+}
+
+static const char *getProductTypeStr(const uint8_t *versionhw) {
+
+    uint8_t product = versionhw[2];
+
+    if (product == 0x01)
+        return "MIFARE DESFire native IC (physical card)";
+    if (product == 0x08)
+        return "MIFARE DESFire Light native IC (physical card)";
+    if (product == 0x81 || product == 0x83)
+        return "MIFARE DESFire implementation on microcontroller (physical card)";
+    if (product == 0x91)
+        return "MIFARE DESFire applet on Java card / secure element";
+    if (product == 0xA1)
+        return "MIFARE DESFire HCE (MIFARE 2GO)";
+    return "UNKNOWN PROD";
+}
+
+static int mfdes_get_info(mfdes_info_res_t *info) {
+
+    PacketResponseNG resp;
+    SendCommandNG(CMD_HF_DESFIRE_INFO, NULL, 0);
     if (WaitForResponseTimeout(CMD_HF_DESFIRE_INFO, &resp, 1500) == false) {
         PrintAndLogEx(WARNING, "Command execute timeout");
         DropField();
@@ -311,6 +412,7 @@ static int mfdes_get_info(mfdes_info_res_t *info) {
     memcpy(info, resp.data.asBytes, sizeof(mfdes_info_res_t));
 
     if (resp.status != PM3_SUCCESS) {
+
         switch (info->isOK) {
             case 1:
                 PrintAndLogEx(WARNING, "Can't select card");
@@ -330,8 +432,7 @@ static int mfdes_get_info(mfdes_info_res_t *info) {
 }
 
 // --- GET SIGNATURE
-static int desfire_print_signature(uint8_t *uid, uint8_t uidlen, uint8_t *signature, size_t signature_len, nxp_cardtype_t card_type) {
-    (void)card_type;
+int desfire_print_signature(uint8_t *uid, uint8_t uidlen, uint8_t *signature, size_t signature_len) {
 
     if (uid == NULL) {
         PrintAndLogEx(DEBUG, "UID=NULL");
@@ -352,8 +453,9 @@ static int desfire_print_signature(uint8_t *uid, uint8_t uidlen, uint8_t *signat
         {"NTAG424DNA, NTAG424DNATT, DESFire Light Ev2", "04B304DC4C615F5326FE9383DDEC9AA892DF3A57FA7FFB3276192BC0EAA252ED45A865E3B093A3D0DCE5BE29E92F1392CE7DE321E3E5C52B3B"},
         {"DESFire Light",   "040E98E117AAA36457F43173DC920A8757267F44CE4EC5ADD3C54075571AEBBF7B942A9774A1D94AD02572427E5AE0A2DD36591B1FB34FCF3D"},
         {"MIFARE Plus Ev1", "044409ADC42F91A8394066BA83D872FB1D16803734E911170412DDF8BAD1A4DADFD0416291AFE1C748253925DA39A5F39A1C557FFACD34C62E"},
-        {"MIFARE Plus EvX", "04BB49AE4447E6B1B6D21C098C1538B594A11A4A1DBF3D5E673DEACDEB3CC512D1C08AFA1A2768CE20A200BACD2DC7804CD7523A0131ABF607"},
+        {"MIFARE Plus Ev2", "04BB49AE4447E6B1B6D21C098C1538B594A11A4A1DBF3D5E673DEACDEB3CC512D1C08AFA1A2768CE20A200BACD2DC7804CD7523A0131ABF607"},
         {"DESFire Ev2 XL",  "04CD5D45E50B1502F0BA4656FF37669597E7E183251150F9574CC8DA56BF01C7ABE019E29FEA48F9CE22C3EA4029A765E1BC95A89543BAD1BC"},
+        {"MIFARE Plus Troika", "040F732E0EA7DF2B38F791BF89425BF7DCDF3EE4D976669E3831F324FF15751BD52AFF1782F72FF2731EEAD5F63ABE7D126E03C856FFB942AF"},
     };
 
 
@@ -402,7 +504,7 @@ static void swap24(uint8_t *data) {
     uint8_t tmp = data[0];
     data[0] = data[2];
     data[2] = tmp;
-};
+}
 
 // default parameters
 static uint8_t defaultKeyNum = 0;
@@ -615,9 +717,29 @@ static int CmdHF14ADesInfo(const char *Cmd) {
         return res;
     }
 
-    nxp_cardtype_t cardtype = getCardType(info.versionHW[3], info.versionHW[4]);
+    nxp_cardtype_t cardtype = getCardType(info.versionHW[1], info.versionHW[3], info.versionHW[4]);
     if (cardtype == PLUS_EV1) {
         PrintAndLogEx(INFO, "Card seems to be MIFARE Plus EV1.  Try " _YELLOW_("`hf mfp info`"));
+        DropField();
+        return PM3_SUCCESS;
+    }
+
+    if (cardtype == PLUS_EV2) {
+        PrintAndLogEx(INFO, "Card seems to be MIFARE Plus EV2.  Try " _YELLOW_("`hf mfp info`"));
+        DropField();
+        return PM3_SUCCESS;
+    }
+
+    if (cardtype == NTAG424) {
+        PrintAndLogEx(INFO, "Card seems to be NTAG 424.  Try " _YELLOW_("`hf ntag424 info`"));
+        DropField();
+        return PM3_SUCCESS;
+    }
+
+    if (cardtype == DESFIRE_UNKNOWN) {
+        PrintAndLogEx(INFO, "HW Version.. %s", sprint_hex_inrow(info.versionHW, sizeof(info.versionHW)));
+        PrintAndLogEx(INFO, "SW Version.. %s", sprint_hex_inrow(info.versionSW, sizeof(info.versionSW)));
+        PrintAndLogEx(INFO, "Version data identification failed. Report to Iceman!");
         DropField();
         return PM3_SUCCESS;
     }
@@ -627,26 +749,31 @@ static int CmdHF14ADesInfo(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "              UID: " _GREEN_("%s"), sprint_hex(info.uid, info.uidlen));
     PrintAndLogEx(SUCCESS, "     Batch number: " _GREEN_("%s"), sprint_hex(info.details + 7, 5));
     PrintAndLogEx(SUCCESS, "  Production date: week " _GREEN_("%02x") " / " _GREEN_("20%02x"), info.details[12], info.details[13]);
+
+    nxp_producttype_t prodtype = getProductType(info.versionHW);
+    if (prodtype != DESFIRE_UNKNOWN_PROD) {
+        PrintAndLogEx(SUCCESS, "     Product type: %s", getProductTypeStr(info.versionHW));
+    }
+
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--- " _CYAN_("Hardware Information"));
     PrintAndLogEx(INFO, "   raw: %s", sprint_hex_inrow(info.versionHW, sizeof(info.versionHW)));
 
     PrintAndLogEx(INFO, "     Vendor Id: " _YELLOW_("%s"), getTagInfo(info.versionHW[0]));
-    PrintAndLogEx(INFO, "          Type: " _YELLOW_("0x%02X"), info.versionHW[1]);
+    PrintAndLogEx(INFO, "          Type: %s", getTypeStr(info.versionHW[1]));
     PrintAndLogEx(INFO, "       Subtype: " _YELLOW_("0x%02X"), info.versionHW[2]);
-    PrintAndLogEx(INFO, "       Version: %s", getVersionStr(info.versionHW[3], info.versionHW[4]));
+    PrintAndLogEx(INFO, "       Version: %s", getVersionStr(info.versionHW[1], info.versionHW[3], info.versionHW[4]));
     PrintAndLogEx(INFO, "  Storage size: %s", getCardSizeStr(info.versionHW[5]));
     PrintAndLogEx(INFO, "      Protocol: %s", getProtocolStr(info.versionHW[6], true));
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--- " _CYAN_("Software Information"));
     PrintAndLogEx(INFO, "   raw: %s", sprint_hex_inrow(info.versionSW, sizeof(info.versionSW)));
     PrintAndLogEx(INFO, "     Vendor Id: " _YELLOW_("%s"), getTagInfo(info.versionSW[0]));
-    PrintAndLogEx(INFO, "          Type: " _YELLOW_("0x%02X"), info.versionSW[1]);
+    PrintAndLogEx(INFO, "          Type: %s", getTypeStr(info.versionSW[1]));
     PrintAndLogEx(INFO, "       Subtype: " _YELLOW_("0x%02X"), info.versionSW[2]);
     PrintAndLogEx(INFO, "       Version: " _YELLOW_("%d.%d"),  info.versionSW[3], info.versionSW[4]);
     PrintAndLogEx(INFO, "  Storage size: %s", getCardSizeStr(info.versionSW[5]));
     PrintAndLogEx(INFO, "      Protocol: %s", getProtocolStr(info.versionSW[6], false));
-
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--------------------------------- " _CYAN_("Card capabilities") " ---------------------------------");
     uint8_t major = info.versionSW[3];
@@ -681,7 +808,7 @@ static int CmdHF14ADesInfo(const char *Cmd) {
         return res;
     }
 
-    if (cardtype == DESFIRE_EV2 ||
+    if (cardtype == DESFIRE_EV2 ||  cardtype == DESFIRE_EV2_XL ||
             cardtype == DESFIRE_LIGHT ||
             cardtype == DESFIRE_EV3 ||
             cardtype == NTAG413DNA) {
@@ -694,7 +821,7 @@ static int CmdHF14ADesInfo(const char *Cmd) {
         res = DesfireReadSignature(&dctx, 0x00, signature, &signature_len);
         if (res == PM3_SUCCESS) {
             if (signature_len == 56)
-                desfire_print_signature(info.uid, info.uidlen, signature, signature_len, cardtype);
+                desfire_print_signature(info.uid, info.uidlen, signature, signature_len);
             else
                 PrintAndLogEx(WARNING, "--- GetSignature returned wrong signature length: %zu", signature_len);
         } else {
@@ -760,9 +887,9 @@ static int CmdHF14ADesInfo(const char *Cmd) {
     iso14a_card_select_t card;
     res = SelectCard14443A_4(true, false, &card);
     if (res == PM3_SUCCESS) {
-        static const char STANDALONE_DESFIRE[] = { 0x75, 0x77, 0x81, 0x02 };
-        static const char JCOP_DESFIRE[] = { 0x75, 0xf7, 0xb1, 0x02 };
-        static const char JCOP3_DESFIRE[] = { 0x78, 0x77, 0x71, 0x02 };
+        static const uint8_t STANDALONE_DESFIRE[] = { 0x75, 0x77, 0x81, 0x02 };
+        static const uint8_t JCOP_DESFIRE[] = { 0x75, 0xf7, 0xb1, 0x02 };
+        static const uint8_t JCOP3_DESFIRE[] = { 0x78, 0x77, 0x71, 0x02 };
 
         if (card.sak == 0x20) {
 
@@ -1077,11 +1204,11 @@ static int CmdHF14aDesChk(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfdes chk",
                   "Checks keys with MIFARE DESFire card.",
-                  "hf mfdes chk -a 123456 -k 000102030405060708090a0b0c0d0e0f  -> check key on aid 0x123456\n"
-                  "hf mfdes chk -d mfdes_default_keys                          -> check keys from dictionary against all existing aid on card\n"
-                  "hf mfdes chk -d mfdes_default_keys -a 123456        -> check keys from dictionary against aid 0x123456\n"
-                  "hf mfdes chk -a 123456 --pattern1b -j keys          -> check all 1-byte keys pattern on aid 0x123456 and save found keys to json\n"
-                  "hf mfdes chk -a 123456 --pattern2b --startp2b FA00  -> check all 2-byte keys pattern on aid 0x123456. Start from key FA00FA00...FA00");
+                  "hf mfdes chk --aid 123456 -k 000102030405060708090a0b0c0d0e0f  -> check key on aid 0x123456\n"
+                  "hf mfdes chk -d mfdes_default_keys                     -> check keys against all existing aid on card\n"
+                  "hf mfdes chk -d mfdes_default_keys --aid 123456        -> check keys against aid 0x123456\n"
+                  "hf mfdes chk --aid 123456 --pattern1b -j keys          -> check all 1-byte keys pattern on aid 0x123456 and save found keys to `keys.json`\n"
+                  "hf mfdes chk --aid 123456 --pattern2b --startp2b FA00  -> check all 2-byte keys pattern on aid 0x123456. Start from key FA00FA00...FA00");
 
     void *argtable[] = {
         arg_param_begin,
@@ -1092,7 +1219,7 @@ static int CmdHF14aDesChk(const char *Cmd) {
         arg_lit0(NULL, "pattern2b",  "Check all 2-byte combinations of key (0000...0000, 0001...0001, 0002...0002, ...)"),
         arg_str0(NULL, "startp2b",   "<pattern>", "Start key (2-byte HEX) for 2-byte search (use with `--pattern2b`)"),
         arg_str0("j",  "json",       "<fn>",  "Json file name to save keys"),
-        arg_lit0("v",  "verbose",    "Verbose mode"),
+        arg_lit0("v",  "verbose",    "Verbose output"),
         arg_int0(NULL, "kdf",        "<0|1|2>", "Key Derivation Function (KDF) (0=None, 1=AN10922, 2=Gallagher)"),
         arg_str0("i",  "kdfi",       "<hex>", "KDF input (1-31 hex bytes)"),
         arg_lit0("a",  "apdu",       "Show APDU requests and responses"),
@@ -1292,8 +1419,9 @@ static int CmdHF14aDesChk(const char *Cmd) {
         }
 
         if (pattern2b && startPattern < 0x10000) {
-            if (verbose == false)
+            if (verbose == false) {
                 PrintAndLogEx(NORMAL, "p" NOLF);
+            }
 
             aeskeyListLen = 0;
             deskeyListLen = 0;
@@ -1303,29 +1431,34 @@ static int CmdHF14aDesChk(const char *Cmd) {
         }
 
         if (dict_filenamelen) {
-            if (verbose == false)
+            if (verbose == false) {
                 PrintAndLogEx(NORMAL, "d" NOLF);
+            }
 
             uint32_t keycnt = 0;
             res = loadFileDICTIONARYEx((char *)dict_filename, deskeyList, sizeof(deskeyList), NULL, 16, &keycnt, endFilePosition, &endFilePosition, false);
-            if (res == PM3_SUCCESS && endFilePosition)
+            if (res == PM3_SUCCESS && endFilePosition) {
                 deskeyListLen = keycnt;
+            }
 
             keycnt = 0;
             res = loadFileDICTIONARYEx((char *)dict_filename, aeskeyList, sizeof(aeskeyList), NULL, 16, &keycnt, endFilePosition, &endFilePosition, false);
-            if (res == PM3_SUCCESS && endFilePosition)
+            if (res == PM3_SUCCESS && endFilePosition) {
                 aeskeyListLen = keycnt;
+            }
 
             keycnt = 0;
             res = loadFileDICTIONARYEx((char *)dict_filename, k3kkeyList, sizeof(k3kkeyList), NULL, 16, &keycnt, endFilePosition, &endFilePosition, false);
-            if (res == PM3_SUCCESS && endFilePosition)
+            if (res == PM3_SUCCESS && endFilePosition) {
                 k3kkeyListLen = keycnt;
+            }
 
             continue;
         }
     }
-    if (verbose == false)
+    if (verbose == false) {
         PrintAndLogEx(NORMAL, "");
+    }
 
     // save keys to json
     if ((jsonnamelen > 0) && result) {
@@ -1363,7 +1496,7 @@ static int CmdHF14aDesChk(const char *Cmd) {
 }
 
 static int CmdHF14ADesList(const char *Cmd) {
-    return CmdTraceListAlias(Cmd, "hf mfdes", "des");
+    return CmdTraceListAlias(Cmd, "hf mfdes", "des -c");
 }
 
 static int DesfireAuthCheck(DesfireContext_t *dctx, DesfireISOSelectWay way, uint32_t appID, DesfireSecureChannel secureChannel, uint8_t *key) {
@@ -1398,7 +1531,7 @@ static int CmdHF14aDesDetect(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>", "Crypt algo"),
         arg_str0("k",  "key",     "<hex>", "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -1665,7 +1798,7 @@ static int CmdHF14aDesMAD(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -1708,13 +1841,17 @@ static int CmdHF14aDesMAD(const char *Cmd) {
     AppListS AppList = {{0}};
     DesfireFillAppList(&dctx, &PICCInfo, AppList, false, false, false); // no deep scan, no scan files
 
-    if (PICCInfo.freemem == 0xffffffff)
-        PrintAndLogEx(SUCCESS, "Applications count: " _GREEN_("%zu") " free memory " _YELLOW_("n/a"), PICCInfo.appCount);
-    else
-        PrintAndLogEx(SUCCESS, "Applications count: " _GREEN_("%zu") " free memory " _GREEN_("%d") " bytes", PICCInfo.appCount, PICCInfo.freemem);
+    PrintAndLogEx(SUCCESS, "# Applications... " _GREEN_("%zu"), PICCInfo.appCount);
+    if (PICCInfo.freemem == 0xffffffff) {
+        PrintAndLogEx(SUCCESS, "Free memory...... " _YELLOW_("n/a"));
+    } else {
+        PrintAndLogEx(SUCCESS, "Free memory...... " _GREEN_("%d") " bytes", PICCInfo.freemem);
+    }
 
-    if ((PICCInfo.keySettings & (1 << 1)) == 0)
-        PrintAndLogEx(WARNING, "Directory list access with CMK : " _RED_("Enabled") ". Try to read mad with Card Master Key(");
+    if ((PICCInfo.keySettings & (1 << 1)) == 0) {
+        PrintAndLogEx(WARNING, "Directory list access with CMK... ( " _RED_("Enabled") " )");
+        PrintAndLogEx(HINT, "Try to read MAD with Card Master Key (CMK)");
+    }
 
     PrintAndLogEx(SUCCESS, "----------------------------------------- " _CYAN_("MAD") " ------------------------------------------");
     bool foundFFFFFF = false;
@@ -1725,18 +1862,20 @@ static int CmdHF14aDesMAD(const char *Cmd) {
         }
     }
 
+    PrintAndLogEx(SUCCESS, _CYAN_("Issuer"));
+
     if (foundFFFFFF) {
         res = DesfireSelectAIDHexNoFieldOn(&dctx, 0xffffff);
         if (res == PM3_SUCCESS) {
             uint32_t madver = 0;
             res = DesfireValueFileOperations(&dctx, 0x00, MFDES_GET_VALUE, &madver);
             if (res != PM3_SUCCESS) {
-                PrintAndLogEx(SUCCESS, "MAD version   : " _RED_("n/a"));
+                PrintAndLogEx(SUCCESS, "MAD version... " _RED_("n/a"));
             } else {
                 if (madver == 3)
-                    PrintAndLogEx(SUCCESS, "MAD version   : " _GREEN_("3"));
+                    PrintAndLogEx(SUCCESS, "MAD version... " _GREEN_("3"));
                 else
-                    PrintAndLogEx(WARNING, "MAD version   : " _YELLOW_("%d"), madver);
+                    PrintAndLogEx(WARNING, "MAD version... " _YELLOW_("%d"), madver);
             }
 
             uint8_t data[250] = {0};
@@ -1744,10 +1883,10 @@ static int CmdHF14aDesMAD(const char *Cmd) {
 
             res = DesfireReadFile(&dctx, 01, 0x000000, 0, data, &datalen);
             if (res != PM3_SUCCESS) {
-                PrintAndLogEx(SUCCESS, "Card Holder   : " _RED_("n/a"));
+                PrintAndLogEx(SUCCESS, "Card Holder... " _RED_("n/a"));
             } else {
                 if (datalen > 0) {
-                    PrintAndLogEx(SUCCESS, "Card Holder   : ");
+                    PrintAndLogEx(SUCCESS, "Card Holder... ");
                     if (verbose) {
                         print_buffer_with_offset(data, datalen, 0, true);
                         PrintAndLogEx(NORMAL, "");
@@ -1755,7 +1894,7 @@ static int CmdHF14aDesMAD(const char *Cmd) {
                     MADCardHolderInfoDecode(data, datalen, verbose);
                     PrintAndLogEx(NORMAL, "");
                 } else {
-                    PrintAndLogEx(SUCCESS, "Card Holder   : " _YELLOW_("none"));
+                    PrintAndLogEx(SUCCESS, "Card Holder... " _YELLOW_("none"));
                 }
             }
 
@@ -1779,16 +1918,41 @@ static int CmdHF14aDesMAD(const char *Cmd) {
     }
 
     size_t madappcount = 0;
-    PrintAndLogEx(SUCCESS, "Applications  : ");
+    PrintAndLogEx(SUCCESS, "");
+    PrintAndLogEx(SUCCESS, _CYAN_("Applications"));
     for (int i = 0; i < PICCInfo.appCount; i++) {
         if ((AppList[i].appNum & 0xf00000) == 0xf00000) {
             DesfirePrintMADAID(AppList[i].appNum, verbose);
+
+            // read file 0, 1, 2
+            res = DesfireSelectAIDHexNoFieldOn(&dctx, AppList[i].appNum);
+            if (res == PM3_SUCCESS) {
+                uint8_t buf[APDU_RES_LEN] = {0};
+                size_t buflen = 0;
+
+                res = DesfireGetFileIDList(&dctx, buf, &buflen);
+                if (res != PM3_SUCCESS) {
+                    PrintAndLogEx(ERR, "Desfire GetFileIDList command " _RED_("error") ". Result: %d", res);
+                    DropField();
+                    return PM3_ESOFT;
+                }
+
+                if (buflen > 0) {
+                    for (int j = 0; j < buflen; j++) {
+                        PrintAndLogEx(INFO, "  File ID... %02x", buf[j]);
+                    }
+                }
+            }
+
             madappcount++;
         }
     }
 
-    if (madappcount == 0)
+    if (madappcount == 0) {
         PrintAndLogEx(SUCCESS, "There is no MAD applications on the card");
+        DropField();
+        return PM3_SUCCESS;
+    }
 
     DropField();
     return PM3_SUCCESS;
@@ -1808,7 +1972,7 @@ static int CmdHF14ADesSelectApp(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2034,7 +2198,7 @@ static int CmdHF14ADesAuth(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>", "Crypt algo"),
         arg_str0("k",  "key",     "<hex>", "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2122,14 +2286,14 @@ static int CmdHF14ADesSetConfiguration(const char *Cmd) {
                   "\n"
                   "hf mfdes setconfig --param 03 --data 0428               -> set SAK\n"
                   "hf mfdes setconfig --param 02 --data 0875778102637264   -> set ATS (first byte - length)\n"
-                  "hf mfdes setconfig --isoid df01 -t aes -s ev2 --param 05 --data 00000000020000000000 -> set LRP mode enable for Desfire Light\n"
-                  "hf mfdes setconfig --isoid df01 -t aes -s ev2 --param 0a --data 00ffffffff           -> Disable failed auth counters for Desfire Light\n"
-                  "hf mfdes setconfig --isoid df01 -t aes -s lrp --param 0a --data 00ffffffff           -> Disable failed auth counters for Desfire Light via lrp");
+                  "hf mfdes setconfig --isoid df01 -t aes --schann ev2 --param 05 --data 00000000020000000000 -> set LRP mode enable for Desfire Light\n"
+                  "hf mfdes setconfig --isoid df01 -t aes --schann ev2 --param 0a --data 00ffffffff           -> Disable failed auth counters for Desfire Light\n"
+                  "hf mfdes setconfig --isoid df01 -t aes --schann lrp --param 0a --data 00ffffffff           -> Disable failed auth counters for Desfire Light via lrp");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>", "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2231,7 +2395,7 @@ static int CmdHF14ADesChangeKey(const char *Cmd) {
                   "but for APP keys crypto algorithm is set by createapp command and can't be changed wo application delete\n"
                   "\n"
                   "hf mfdes changekey --aid 123456    -> execute with default factory setup. change des key 0 in the app 123456 from 00..00 to 00..00\n"
-                  "hf mfdes changekey --isoid df01 -t aes -s lrp --newkeyno 01    -> change key 01 via lrp channel"
+                  "hf mfdes changekey --isoid df01 -t aes --schann lrp --newkeyno 01    -> change key 01 via lrp channel"
                   "hf mfdes changekey -t des --newalgo aes --newkey 11223344556677889900112233445566 --newver a5      -> change card master key to AES one\n"
                   "hf mfdes changekey --aid 123456 -t aes --key 00000000000000000000000000000000 --newkey 11223344556677889900112233445566 -> change app master key\n"
                   "hf mfdes changekey --aid 123456 -t des -n 0 --newkeyno 1 --oldkey 5555555555555555 --newkey 1122334455667788  -> change key 1 with auth from key 0\n"
@@ -2240,7 +2404,7 @@ static int CmdHF14ADesChangeKey(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>", "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2402,7 +2566,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2415,6 +2579,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
         arg_str0(NULL, "aid",     "<hex>", "Application ID for create. Mandatory. (3 hex bytes, big endian)"),
         arg_str0(NULL, "fid",     "<hex>", "ISO file ID. Forbidden values: 0000 3F00, 3FFF, FFFF. (2 hex bytes, big endian)"),
         arg_str0(NULL, "dfname",  "<string>", "ISO DF Name (1..16 chars)"),
+        arg_str0(NULL, "dfhex",   "<hex>", "ISO DF Name as hex (1..16 bytes)"),
         arg_str0(NULL, "ks1",     "<hex>", "Key settings 1 (1 hex byte). Application Master Key Settings (def: 0x0F)"),
         arg_str0(NULL, "ks2",     "<hex>", "Key settings 2 (1 hex byte). (def: 0x0E)"),
         arg_str0(NULL, "dstalgo", "<DES|2TDEA|3TDEA|AES>",  "Application key crypt algo (def: DES)"),
@@ -2451,27 +2616,32 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
     int dfnamelen = 16;
     CLIGetStrWithReturn(ctx, 14, dfname, &dfnamelen);
 
+    if (dfnamelen == 0) { // no text DF Name supplied
+        dfnamelen = 16;
+        CLIGetHexWithReturn(ctx, 15, dfname, &dfnamelen);
+    }
+
     uint32_t ks1 = 0x0f;
-    if (CLIGetUint32Hex(ctx, 15, 0x0f, &ks1, NULL, 1, "Key settings 1 must have 1 byte length")) {
+    if (CLIGetUint32Hex(ctx, 16, 0x0f, &ks1, NULL, 1, "Key settings 1 must have 1 byte length")) {
         CLIParserFree(ctx);
         return PM3_EINVARG;
     }
 
     uint32_t ks2 = 0x0e;
     bool ks2present = false;
-    if (CLIGetUint32Hex(ctx, 16, 0x0e, &ks2, &ks2present, 1, "Key settings 2 must have 1 byte length")) {
+    if (CLIGetUint32Hex(ctx, 17, 0x0e, &ks2, &ks2present, 1, "Key settings 2 must have 1 byte length")) {
         CLIParserFree(ctx);
         return PM3_EINVARG;
     }
 
     int dstalgo = T_DES;
-    if (CLIGetOptionList(arg_get_str(ctx, 17), DesfireAlgoOpts, &dstalgo)) {
+    if (CLIGetOptionList(arg_get_str(ctx, 18), DesfireAlgoOpts, &dstalgo)) {
         CLIParserFree(ctx);
         return PM3_ESOFT;
     }
 
-    int keycount = arg_get_int_def(ctx, 18, 0x0e);
-    bool noauth = arg_get_lit(ctx, 19);
+    int keycount = arg_get_int_def(ctx, 19, 0x0e);
+    bool noauth = arg_get_lit(ctx, 20);
 
     SetAPDULogging(APDULogging);
     CLIParserFree(ctx);
@@ -2540,7 +2710,7 @@ static int CmdHF14ADesCreateApp(const char *Cmd) {
         PrintAndLogEx(INFO, "ISO file ID  %s", (data[4] & 0x20) ? "enabled" : "disabled");
         if ((data[4] & 0x20)) {
             PrintAndLogEx(INFO, "ISO file ID  0x%04x", MemLeToUint2byte(&data[5]));
-            PrintAndLogEx(INFO, "DF Name[%02zu]  %s\n", strnlen((char *)&data[7], 16), (char *)&data[7]);
+            PrintAndLogEx(INFO, "DF Name[%02d]  %s | %s\n", dfnamelen, sprint_ascii(dfname, dfnamelen), sprint_hex(dfname, dfnamelen));
         }
         PrintKeySettings(data[3], data[4], true, true);
         PrintAndLogEx(INFO, "---------------------------");
@@ -2568,7 +2738,7 @@ static int CmdHF14ADesDeleteApp(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2577,7 +2747,7 @@ static int CmdHF14ADesDeleteApp(const char *Cmd) {
         arg_str0("m",  "cmode",   "<plain|mac|encrypt>", "Communicaton mode"),
         arg_str0("c",  "ccset",   "<native|niso|iso>", "Communicaton command set"),
         arg_str0(NULL, "schann",  "<d40|ev1|ev2|lrp>", "Secure channel"),
-        arg_str0(NULL, "aid",     "<hex>", "Application ID of delegated application (3 hex bytes, big endian)"),
+        arg_str0(NULL, "aid",     "<hex>", "Application ID to delete (3 hex bytes, big endian)"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
@@ -2602,7 +2772,7 @@ static int CmdHF14ADesDeleteApp(const char *Cmd) {
         return PM3_ESOFT;
     }
 
-    res = DesfireSelectAndAuthenticate(&dctx, securechann, appid, verbose);
+    res = DesfireSelectAndAuthenticate(&dctx, securechann, 0x000000, verbose);
     if (res != PM3_SUCCESS) {
         DropField();
         return res;
@@ -2626,12 +2796,12 @@ static int CmdHF14ADesGetUID(const char *Cmd) {
     CLIParserInit(&ctx, "hf mfdes getuid",
                   "Get UID from card. Get the real UID if the random UID bit is on and get the same UID as in anticollision if not. Any card's key needs to be provided. ",
                   "hf mfdes getuid                              -> execute with default factory setup\n"
-                  "hf mfdes getuid --isoid df01 -t aes -s lrp   -> for desfire lights default settings");
+                  "hf mfdes getuid --isoid df01 -t aes --schan lrp   -> for desfire lights default settings");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2711,7 +2881,7 @@ static int CmdHF14ADesFormatPICC(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2768,7 +2938,7 @@ static int CmdHF14ADesGetFreeMem(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2830,7 +3000,7 @@ static int CmdHF14ADesChKeySettings(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -2903,7 +3073,7 @@ static int CmdHF14ADesGetKeyVersions(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number for authentication"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3005,7 +3175,7 @@ static int CmdHF14ADesGetKeySettings(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3083,7 +3253,7 @@ static int CmdHF14ADesGetAIDs(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3154,7 +3324,7 @@ static int CmdHF14ADesGetAppNames(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3226,7 +3396,7 @@ static int CmdHF14ADesGetFileIDs(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3295,12 +3465,12 @@ static int CmdHF14ADesGetFileISOIDs(const char *Cmd) {
                   "hf mfdes getfileisoids --aid 123456    -> execute with defaults from `default` command\n"
                   "hf mfdes getfileisoids -n 0 -t des -k 0000000000000000 --kdf none --aid 123456    -> execute with default factory setup\n"
                   "hf mfdes getfileisoids --isoid df01     -> get iso file ids from Desfire Light with factory card settings\n"
-                  "hf mfdes getfileisoids --isoid df01 -s lrp -t aes     -> get iso file ids from Desfire Light via lrp channel with default key authentication");
+                  "hf mfdes getfileisoids --isoid df01 --schann lrp -t aes     -> get iso file ids from Desfire Light via lrp channel with default key authentication");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3373,7 +3543,7 @@ static int CmdHF14ADesGetFileSettings(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3435,6 +3605,7 @@ static int CmdHF14ADesGetFileSettings(const char *Cmd) {
 
     DesfirePrintFileSettings(buf, buflen);
 
+    PrintAndLogEx(NORMAL, "");
     DropField();
     return PM3_SUCCESS;
 }
@@ -3491,7 +3662,6 @@ static int DesfireCreateFileParameters(
     bool userawfrights = false;
     if (frightsid) {
         if (CLIGetUint32Hex(ctx, frightsid, 0xeeee, &frights, &userawfrights, 2, "File rights must have 2 bytes length")) {
-            CLIParserFree(ctx);
             return PM3_EINVARG;
         }
     }
@@ -3537,12 +3707,12 @@ static int CmdHF14ADesChFileSettings(const char *Cmd) {
                   "hf mfdes chfilesettings --aid 123456 --fid 01 --amode plain --rrights free --wrights free --rwrights free --chrights key0 -> change file settings app=123456, file=01 with defaults from `default` command\n"
                   "hf mfdes chfilesettings -n 0 -t des -k 0000000000000000 --kdf none --aid 123456 --fid 01 --rawdata 00EEEE -> execute with default factory setup\n"
                   "hf mfdes chfilesettings --aid 123456 --fid 01 --rawdata 810000021f112f22 -> change file settings with additional rights for keys 1 and 2\n"
-                  "hf mfdes chfilesettings --isoid df01 --fid 00 --amode plain --rawrights eee0 -s lrp -t aes -> change file settings via lrp channel");
+                  "hf mfdes chfilesettings --isoid df01 --fid 00 --amode plain --rawrights eee0 --schann lrp -t aes -> change file settings via lrp channel");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3685,7 +3855,7 @@ static int CmdHF14ADesCreateFile(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3823,7 +3993,7 @@ static int CmdHF14ADesCreateValueFile(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -3949,7 +4119,7 @@ static int CmdHF14ADesCreateRecordFile(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4062,13 +4232,13 @@ static int CmdHF14ADesCreateTrMACFile(const char *Cmd) {
                   "hf mfdes createmacfile --aid 123456 --fid 01 --rawrights 0FF0 --mackey 00112233445566778899aabbccddeeff --mackeyver 01 -> create transaction mac file with parameters. Rights from default. Authentication with defaults from `default` command\n"
                   "hf mfdes createmacfile --aid 123456 --fid 01 --amode plain --rrights free --wrights deny --rwrights free --chrights key0 --mackey 00112233445566778899aabbccddeeff -> create file app=123456, file=01, with key, and mentioned rights with defaults from `default` command\n"
                   "hf mfdes createmacfile -n 0 -t des -k 0000000000000000 --kdf none --aid 123456 --fid 01 -> execute with default factory setup. key and keyver == 0x00..00\n"
-                  "hf mfdes createmacfile --isoid df01 --fid 0f -s lrp -t aes --rawrights 0FF0 --mackey 00112233445566778899aabbccddeeff --mackeyver 01 -> create transaction mac file via lrp channel\n"
-                  "hf mfdes createmacfile --isoid df01 --fid 0f -s lrp -t aes --rawrights 0F10 --mackey 00112233445566778899aabbccddeeff --mackeyver 01 -> create transaction mac file via lrp channel with CommitReaderID command enable");
+                  "hf mfdes createmacfile --isoid df01 --fid 0f --schann lrp -t aes --rawrights 0FF0 --mackey 00112233445566778899aabbccddeeff --mackeyver 01 -> create transaction mac file via lrp channel\n"
+                  "hf mfdes createmacfile --isoid df01 --fid 0f --schann lrp -t aes --rawrights 0F10 --mackey 00112233445566778899aabbccddeeff --mackeyver 01 -> create transaction mac file via lrp channel with CommitReaderID command enable");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",      "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose",   "Verbose mode"),
+        arg_lit0("v",  "verbose",   "Verbose output"),
         arg_int0("n",  "keyno",     "<dec>", "Key number"),
         arg_str0("t",  "algo",      "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",       "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4180,12 +4350,12 @@ static int CmdHF14ADesDeleteFile(const char *Cmd) {
     CLIParserInit(&ctx, "hf mfdes deletefile",
                   "Delete file from application. Master key needs to be provided or flag --no-auth set (depend on cards settings).",
                   "hf mfdes deletefile --aid 123456 --fid 01 -> delete file for: app=123456, file=01 with defaults from `default` command\n"
-                  "hf mfdes deletefile --isoid df01 --fid 0f -s lrp -t aes -> delete file for lrp channel");
+                  "hf mfdes deletefile --isoid df01 --fid 0f --schann lrp -t aes -> delete file for lrp channel");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4226,7 +4396,7 @@ static int CmdHF14ADesDeleteFile(const char *Cmd) {
     CLIParserFree(ctx);
 
     if (fnum > 0x1F) {
-        PrintAndLogEx(ERR, "File number range is invalid (exp 0 - 31), got %d", fnum);
+        PrintAndLogEx(ERR, "File number range is invalid (exp 0x00 - 0x1f), got 0x%02x", fnum);
         return PM3_EINVARG;
     }
 
@@ -4257,13 +4427,13 @@ static int CmdHF14ADesValueOperations(const char *Cmd) {
                   "hf mfdes value --aid 123456 --fid 01  -> get value app=123456, file=01 with defaults from `default` command\n"
                   "hf mfdes value --aid 123456 --fid 01 --op credit -d 00000001 -> credit value app=123456, file=01 with defaults from `default` command\n"
                   "hf mfdes value -n 0 -t des -k 0000000000000000 --kdf none --aid 123456 --fid 01 -> get value with default factory setup\n"
-                  "hf mfdes val --isoid df01 --fid 03 -s lrp -t aes -n 1 --op credit --d 00000001 -m encrypt -> credit value in the lrp encrypted mode\n"
-                  "hf mfdes val --isoid df01 --fid 03 -s lrp -t aes -n 1 --op get -m plain -> get value in plain (nevertheless of mode) works for desfire light (look SetConfiguration option 0x09)");
+                  "hf mfdes val --isoid df01 --fid 03 --schann lrp -t aes -n 1 --op credit --d 00000001 -m encrypt -> credit value in the lrp encrypted mode\n"
+                  "hf mfdes val --isoid df01 --fid 03 --schann lrp -t aes -n 1 --op get -m plain -> get value in plain (nevertheless of mode) works for desfire light (look SetConfiguration option 0x09)");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4430,12 +4600,12 @@ static int CmdHF14ADesClearRecordFile(const char *Cmd) {
     CLIParserInit(&ctx, "hf mfdes clearrecfile",
                   "Clear record file. Master key needs to be provided or flag --no-auth set (depend on cards settings).",
                   "hf mfdes clearrecfile --aid 123456 --fid 01 -> clear record file for: app=123456, file=01 with defaults from `default` command\n"
-                  "hf mfdes clearrecfile --isoid df01 --fid 01 -s lrp -t aes -n 3 -> clear record file for lrp channel with key number 3");
+                  "hf mfdes clearrecfile --isoid df01 --fid 01 --schann lrp -t aes -n 3 -> clear record file for lrp channel with key number 3");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4476,7 +4646,7 @@ static int CmdHF14ADesClearRecordFile(const char *Cmd) {
     CLIParserFree(ctx);
 
     if (fnum > 0x1F) {
-        PrintAndLogEx(ERR, "File number range is invalid (exp 0 - 31), got %d", fnum);
+        PrintAndLogEx(ERR, "File number range is invalid (exp 0x00 - 0x1f), got 0x%02x", fnum);
         return PM3_EINVARG;
     }
 
@@ -4684,13 +4854,15 @@ static int DesfileReadFileAndPrint(DesfireContext_t *dctx,
                 PrintAndLogEx(WARNING, "File needs to be authenticated with key 0x%02x or 0x%02x but current authentication key is 0x%02x", fsettings.rAccess, fsettings.rwAccess, dctx->keyNum);
 
             if (fsettings.rAccess == 0x0f && fsettings.rwAccess == 0x0f)
-                PrintAndLogEx(WARNING, "File access denied. All read access rights is 0x0f.");
+                PrintAndLogEx(WARNING, "File access denied. All read access rights is 0x0F");
 
-            if (verbose)
-                PrintAndLogEx(INFO, "Got file type: %s. Option: %s. comm mode: %s",
+            if (verbose) {
+                PrintAndLogEx(INFO, _CYAN_("File type:") " %s  Option: %s  comm mode: %s",
                               GetDesfireFileType(fsettings.fileType),
                               CLIGetOptionListStr(DesfireReadFileTypeOpts, filetype),
-                              CLIGetOptionListStr(DesfireCommunicationModeOpts, fsettings.commMode));
+                              CLIGetOptionListStr(DesfireCommunicationModeOpts, fsettings.commMode)
+                             );
+            }
         } else {
             PrintAndLogEx(WARNING, "GetFileSettings error. Can't get file type.");
         }
@@ -4762,14 +4934,17 @@ static int DesfileReadFileAndPrint(DesfireContext_t *dctx,
             }
         }
 
-        if (resplen > 0) {
+        if (resplen > 0 && reclen > 0) {
             size_t reccount = resplen / reclen;
             PrintAndLogEx(SUCCESS, "Read %zu bytes from file 0x%02x from record %d record count %zu record length %zu", resplen, fnum, offset, reccount, reclen);
-            if (reccount > 1)
+            if (reccount > 1) {
                 PrintAndLogEx(SUCCESS, "Lastest record at the bottom.");
+            }
+
             for (int i = 0; i < reccount; i++) {
-                if (i != 0)
+                if (i != 0) {
                     PrintAndLogEx(SUCCESS, "Record %zu", reccount - (i + offset + 1));
+                }
                 print_buffer_with_offset(&resp[i * reclen], reclen, offset, (i == 0));
             }
         } else {
@@ -4829,13 +5004,13 @@ static int CmdHF14ADesReadData(const char *Cmd) {
                   "hf mfdes read --isoid 0102 --fileisoid 1000 --type data -c iso -> read file via ISO channel: app iso id=0102, iso id=1000, offset=0. Select via ISO commands\n"
                   "hf mfdes read --isoid 0102 --fileisoid 1100 --type record -c iso --offset 000005 --length 000001 -> get one record (number 5) from file 1100 via iso commands\n"
                   "hf mfdes read --isoid 0102 --fileisoid 1100 --type record -c iso --offset 000005 --length 000000 -> get all record (from 5 to 1) from file 1100 via iso commands\n"
-                  "hf mfdes read --isoid df01 --fid 00 -s lrp -t aes --length 000010 -> read via lrp channel\n"
-                  "hf mfdes read --isoid df01 --fid 00 -s ev2 -t aes --length 000010 --isochain -> read Desfire Light via ev2 channel");
+                  "hf mfdes read --isoid df01 --fid 00 --schann lrp -t aes --length 000010 -> read via lrp channel\n"
+                  "hf mfdes read --isoid df01 --fid 00 --schann ev2 -t aes --length 000010 --isochain -> read Desfire Light via ev2 channel");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -4908,7 +5083,7 @@ static int CmdHF14ADesReadData(const char *Cmd) {
     CLIParserFree(ctx);
 
     if (fnum > 0x1F) {
-        PrintAndLogEx(ERR, "File number range is invalid (exp 0 - 31), got %d", fnum);
+        PrintAndLogEx(ERR, "File number range is invalid (exp 0x00 - 0x1f), got 0x%02x", fnum);
         return PM3_EINVARG;
     }
 
@@ -4989,7 +5164,7 @@ static int CmdHF14ADesWriteData(const char *Cmd) {
                   "Write data from file. Key needs to be provided or flag --no-auth set (depend on file settings).",
                   "In the mode with CommitReaderID to decode previous reader id command needs to read transaction counter via dump/read command and specify --trkey\n"
                   "\n"
-                  "hf mfdes write --aid 123456 --fid 01 -d 01020304 -> write file: app=123456, file=01, offset=0, get file type from card. use default channel settings from `default` command\n"
+                  "hf mfdes write --aid 123456 --fid 01 -d 01020304 -> AID 123456, file=01, offset=0, get file type from card. use default channel settings from `default` command\n"
                   "hf mfdes write --aid 123456 --fid 01 --type data -d 01020304 --0ffset 000100 -> write data to std file with offset 0x100\n"
                   "hf mfdes write --aid 123456 --fid 01 --type data -d 01020304 --commit -> write data to backup file with commit\n"
                   "hf mfdes write --aid 123456 --fid 01 --type value -d 00000001 -> increment value file\n"
@@ -5001,12 +5176,12 @@ static int CmdHF14ADesWriteData(const char *Cmd) {
                   "hf mfdes write --isoid 1234 --fileisoid 1000 --type data -c iso -d 01020304 -> write data to std/backup file via iso commandset\n"
                   "hf mfdes write --isoid 1234 --fileisoid 2000 --type record -c iso -d 01020304 -> send record to record file via iso commandset\n"
                   "hf mfdes write --aid 123456 --fid 01 -d 01020304 --readerid 010203 -> write data to file with CommitReaderID command before write and CommitTransaction after write\n"
-                  "hf mfdes write --isoid df01 --fid 04 -d 01020304 --trkey 00112233445566778899aabbccddeeff --readerid 5532 -t aes -s lrp -> advanced CommitReaderID via lrp channel sample");
+                  "hf mfdes write --isoid df01 --fid 04 -d 01020304 --trkey 00112233445566778899aabbccddeeff --readerid 5532 -t aes --schann lrp -> advanced CommitReaderID via lrp channel sample");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -5107,7 +5282,7 @@ static int CmdHF14ADesWriteData(const char *Cmd) {
     CLIParserFree(ctx);
 
     if (fnum > 0x1F) {
-        PrintAndLogEx(ERR, "File number range is invalid (exp 0 - 31), got %d", fnum);
+        PrintAndLogEx(ERR, "File number range is invalid (exp 0x00 - 0x1f), got 0x%02x", fnum);
         return PM3_EINVARG;
     }
 
@@ -5337,14 +5512,15 @@ static int CmdHF14ADesWriteData(const char *Cmd) {
 static int CmdHF14ADesLsFiles(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfdes lsfiles",
-                  "Show file list. Master key needs to be provided or flag --no-auth set (depend on cards settings).",
-                  "hf mfdes lsfiles --aid 123456     -> show file list for: app=123456 with defaults from `default` command"
-                  "hf mfdes lsfiles --isoid df01 --no-auth    -> show files from desfire light");
+                  "This commands List files inside application AID / ISOID.\n"
+                  "Master key needs to be provided or flag --no-auth set (depend on cards settings).",
+                  "hf mfdes lsfiles --aid 123456            -> AID 123456, list files using `default` command creds\n"
+                  "hf mfdes lsfiles --isoid df01 --no-auth  -> list files for DESFire light");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -5417,7 +5593,7 @@ static int CmdHF14ADesLsApp(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -5478,12 +5654,12 @@ static int CmdHF14ADesDump(const char *Cmd) {
     CLIParserInit(&ctx, "hf mfdes dump",
                   "For each application show fil list and then file content. Key needs to be provided for authentication or flag --no-auth set (depend on cards settings).",
                   "hf mfdes dump --aid 123456     -> show file dump for: app=123456 with channel defaults from `default` command/n"
-                  "hf mfdes dump --isoid df01 -s lrp -t aes --length 000090    -> lrp default settings with length limit");
+                  "hf mfdes dump --isoid df01 --schann lrp -t aes --length 000090    -> lrp default settings with length limit");
 
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu",    "Show APDU requests and responses"),
-        arg_lit0("v",  "verbose", "Verbose mode"),
+        arg_lit0("v",  "verbose", "Verbose output"),
         arg_int0("n",  "keyno",   "<dec>", "Key number"),
         arg_str0("t",  "algo",    "<DES|2TDEA|3TDEA|AES>",  "Crypt algo"),
         arg_str0("k",  "key",     "<hex>",   "Key for authenticate (HEX 8(DES), 16(2TDEA or AES) or 24(3TDEA) bytes)"),
@@ -5598,18 +5774,18 @@ static int CmdHF14ADesTest(const char *Cmd) {
 
 static command_t CommandTable[] = {
     {"help",             CmdHelp,                     AlwaysAvailable, "This help"},
-    {"-----------",      CmdHelp,                     IfPm3Iso14443a,  "---------------------- " _CYAN_("general") " ----------------------"},
-    {"info",             CmdHF14ADesInfo,             IfPm3Iso14443a,  "Tag information"},
-    {"getuid",           CmdHF14ADesGetUID,           IfPm3Iso14443a,  "Get uid from card"},
-    {"default",          CmdHF14ADesDefault,          IfPm3Iso14443a,  "Set defaults for all the commands"},
+    {"list",             CmdHF14ADesList,             AlwaysAvailable, "List DESFire (ISO 14443A) history"},
+    {"-----------",      CmdHelp,                     IfPm3Iso14443a,  "---------------------- " _CYAN_("General") " ----------------------"},
     {"auth",             CmdHF14ADesAuth,             IfPm3Iso14443a,  "MIFARE DesFire Authentication"},
     {"chk",              CmdHF14aDesChk,              IfPm3Iso14443a,  "Check keys"},
+    {"default",          CmdHF14ADesDefault,          IfPm3Iso14443a,  "Set defaults for all the commands"},
     {"detect",           CmdHF14aDesDetect,           IfPm3Iso14443a,  "Detect key type and tries to find one from the list"},
-    {"freemem",          CmdHF14ADesGetFreeMem,       IfPm3Iso14443a,  "Get free memory size"},
-    {"setconfig",        CmdHF14ADesSetConfiguration, IfPm3Iso14443a,  "Set card configuration"},
     {"formatpicc",       CmdHF14ADesFormatPICC,       IfPm3Iso14443a,  "Format PICC"},
-    {"list",             CmdHF14ADesList,             AlwaysAvailable, "List DESFire (ISO 14443A) history"},
+    {"freemem",          CmdHF14ADesGetFreeMem,       IfPm3Iso14443a,  "Get free memory size"},
+    {"getuid",           CmdHF14ADesGetUID,           IfPm3Iso14443a,  "Get uid from card"},
+    {"info",             CmdHF14ADesInfo,             IfPm3Iso14443a,  "Tag information"},
     {"mad",              CmdHF14aDesMAD,              IfPm3Iso14443a,  "Prints MAD records / files from the card"},
+    {"setconfig",        CmdHF14ADesSetConfiguration, IfPm3Iso14443a,  "Set card configuration"},
     {"-----------",      CmdHelp,                     IfPm3Iso14443a,  "-------------------- " _CYAN_("Applications") " -------------------"},
     {"lsapp",            CmdHF14ADesLsApp,            IfPm3Iso14443a,  "Show all applications with files list"},
     {"getaids",          CmdHF14ADesGetAIDs,          IfPm3Iso14443a,  "Get Application IDs list"},

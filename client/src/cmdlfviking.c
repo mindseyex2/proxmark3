@@ -112,7 +112,7 @@ static int CmdVikingClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf viking clone",
                   "clone a Viking AM tag to a T55x7, Q5/T5555 or EM4305/4469 tag.",
-                  "lf viking clone --cn 01A337\n"
+                  "lf viking clone --cn 01A337        -> encode for T55x7 tag\n"
                   "lf viking clone --cn 01A337 --q5   -> encode for Q5/T5555 tag\n"
                   "lf viking clone --cn 112233 --em   -> encode for EM4305/4469"
                  );
@@ -231,9 +231,10 @@ static int CmdVikingSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_ASK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
+    }
     return PM3_SUCCESS;
 }
 
@@ -241,7 +242,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,        AlwaysAvailable, "This help"},
     {"demod",   CmdVikingDemod, AlwaysAvailable, "demodulate a Viking tag from the GraphBuffer"},
     {"reader",  CmdVikingReader,  IfPm3Lf,       "attempt to read and extract tag data"},
-    {"clone",   CmdVikingClone, IfPm3Lf,         "clone Viking tag to T55x7 or Q5/T5555"},
+    {"clone",   CmdVikingClone, IfPm3Lf,         "clone Viking tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdVikingSim,   IfPm3Lf,         "simulate Viking tag"},
     {NULL, NULL, NULL, NULL}
 };
@@ -266,28 +267,51 @@ uint64_t getVikingBits(uint32_t id) {
     return ret;
 }
 
+static bool isValidVikingChecksum(uint8_t *src) {
+    uint32_t checkCalc = bytebits_to_byte(src, 8) ^
+                         bytebits_to_byte(src + 8, 8) ^
+                         bytebits_to_byte(src + 16, 8) ^
+                         bytebits_to_byte(src + 24, 8) ^
+                         bytebits_to_byte(src + 32, 8) ^
+                         bytebits_to_byte(src + 40, 8) ^
+                         bytebits_to_byte(src + 48, 8) ^
+                         bytebits_to_byte(src + 56, 8) ^
+                         0xA8;
+    return checkCalc == 0;
+}
+
 // find viking preamble 0xF200 in already demoded data
 int detectViking(uint8_t *src, size_t *size) {
     //make sure buffer has data
     if (*size < 64) return -2;
+    size_t tsize = *size;
     size_t startIdx = 0;
+    bool preamblefound = false;
     uint8_t preamble[] = {1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    if (!preambleSearch(src, preamble, sizeof(preamble), size, &startIdx))
-        return -4; //preamble not found
-
-    uint32_t checkCalc = bytebits_to_byte(src + startIdx, 8) ^
-                         bytebits_to_byte(src + startIdx + 8, 8) ^
-                         bytebits_to_byte(src + startIdx + 16, 8) ^
-                         bytebits_to_byte(src + startIdx + 24, 8) ^
-                         bytebits_to_byte(src + startIdx + 32, 8) ^
-                         bytebits_to_byte(src + startIdx + 40, 8) ^
-                         bytebits_to_byte(src + startIdx + 48, 8) ^
-                         bytebits_to_byte(src + startIdx + 56, 8);
-
-    if (checkCalc != 0xA8) return -5;
-    if (*size != 64) return -6;
-    //return start position
-    return (int)startIdx;
+    if (preambleSearch(src, preamble, sizeof(preamble), size, &startIdx)) {
+        preamblefound = true;
+        if (*size != 64) return -6;
+        if (isValidVikingChecksum(src + startIdx)) {
+            //return start position
+            return (int)startIdx;
+        }
+    }
+    // Invert bits and try again
+    *size = tsize;
+    for (uint32_t i = 0; i < *size; i++) src[i] ^= 1;
+    if (preambleSearch(src, preamble, sizeof(preamble), size, &startIdx)) {
+        preamblefound = true;
+        if (*size != 64) return -6;
+        if (isValidVikingChecksum(src + startIdx)) {
+            //return start position
+            return (int)startIdx;
+        }
+    }
+    // Restore buffer
+    *size = tsize;
+    for (uint32_t i = 0; i < *size; i++) src[i] ^= 1;
+    if (preamblefound)
+        return -5;
+    else
+        return -4;
 }
-
-

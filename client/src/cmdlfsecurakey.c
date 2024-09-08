@@ -171,9 +171,9 @@ static int CmdSecurakeyClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf securakey clone",
                   "clone a Securakey tag to a T55x7, Q5/T5555 or EM4305/4469 tag.",
-                  "lf securakey clone --raw 7FCB400001ADEA5344300000\n"
-                  "lf securakey clone --q5 --raw 7FCB400001ADEA5344300000 -> encode for Q5/T5555 tag\n"
-                  "lf securakey clone --em --raw 7FCB400001ADEA5344300000 -> encode for EM4305/4469"
+                  "lf securakey clone --raw 7FCB400001ADEA5344300000      -> encode for T55x7 tag\n"
+                  "lf securakey clone --raw 7FCB400001ADEA5344300000 --q5 -> encode for Q5/T5555 tag\n"
+                  "lf securakey clone --raw 7FCB400001ADEA5344300000 --em -> encode for EM4305/4469"
                  );
 
     void *argtable[] = {
@@ -283,10 +283,10 @@ static int CmdSecurakeySim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_ASK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
-
+    }
     return PM3_SUCCESS;
 }
 
@@ -294,7 +294,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,            AlwaysAvailable, "This help"},
     {"demod",   CmdSecurakeyDemod,  AlwaysAvailable, "demodulate an Securakey tag from the GraphBuffer"},
     {"reader",  CmdSecurakeyReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",   CmdSecurakeyClone,  IfPm3Lf,         "clone Securakey tag to T55x7"},
+    {"clone",   CmdSecurakeyClone,  IfPm3Lf,         "clone Securakey tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdSecurakeySim,    IfPm3Lf,         "simulate Securakey tag"},
     {NULL, NULL, NULL, NULL}
 };

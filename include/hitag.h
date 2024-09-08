@@ -13,7 +13,7 @@
 //
 // See LICENSE.txt for the text of the license.
 //-----------------------------------------------------------------------------
-// Hitag2, HitagS
+// Hitag 2, Hitag S
 //-----------------------------------------------------------------------------
 
 
@@ -22,54 +22,72 @@
 
 #include "common.h"
 
+#define HITAG_NRAR_SIZE         8
+#define HITAG_CRYPTOKEY_SIZE    6
+#define HITAG_PASSWORD_SIZE     4
+#define HITAG_UID_SIZE          4
+#define HITAG_BLOCK_SIZE        4
+#define HITAG2_MAX_BLOCKS       8
+#define HITAG2_MAX_BYTE_SIZE    (HITAG2_MAX_BLOCKS * HITAG_BLOCK_SIZE)
+
+#define HITAGS_NRAR_SIZE         8
+#define HITAGS_CRYPTOKEY_SIZE    6
+#define HITAGS_UID_SIZE          4
+#define HITAGS_PAGE_SIZE         4
+#define HITAGS_BLOCK_SIZE        4
+#define HITAGS_MAX_PAGES         64
+#define HITAGS_MAX_BYTE_SIZE     (HITAGS_MAX_PAGES * HITAGS_PAGE_SIZE)
+
+// need to see which limits these cards has
+#define HITAG1_MAX_BYTE_SIZE    64
+#define HITAGU_MAX_BYTE_SIZE    64
+#define HITAG_MAX_BYTE_SIZE    (64 * HITAG_BLOCK_SIZE)
+
+#define HITAG2_CONFIG_BLOCK     3
+
 typedef enum {
-    RHTSF_CHALLENGE           = 01,
-    RHTSF_KEY                 = 02,
-    WHTSF_CHALLENGE           = 03,
-    WHTSF_KEY                 = 04,
+    RHTSF_PLAIN,
+    WHTSF_PLAIN,
+    RHTSF_CHALLENGE,
+    WHTSF_CHALLENGE,
+    RHTSF_KEY,
+    WHTSF_KEY,
     HTS_LAST_CMD              = WHTSF_KEY,
-    RHT1F_PLAIN               = 11,
-    RHT1F_AUTHENTICATE        = 12,
+
+    RHT1F_PLAIN,
+    RHT1F_AUTHENTICATE,
     HT1_LAST_CMD              = RHT1F_AUTHENTICATE,
-    RHT2F_PASSWORD            = 21,
-    RHT2F_AUTHENTICATE        = 22,
-    RHT2F_CRYPTO              = 23,
-    WHT2F_CRYPTO              = 24,
-    RHT2F_TEST_AUTH_ATTEMPTS  = 25,
-    RHT2F_UID_ONLY            = 26,
-    WHT2F_PASSWORD            = 27,
+
+    RHT2F_PASSWORD,
+    RHT2F_AUTHENTICATE,
+    RHT2F_CRYPTO,
+    WHT2F_CRYPTO,
+    RHT2F_TEST_AUTH_ATTEMPTS,
+    RHT2F_UID_ONLY,
+    WHT2F_PASSWORD,
     HT2_LAST_CMD              = WHT2F_PASSWORD,
-} hitag_function;
+} PACKED hitag_function;
 
 typedef struct {
-    uint8_t password[4];
-} PACKED rht2d_password;
-
-typedef struct {
+    hitag_function cmd;
+    int16_t page;
+    uint8_t data[4];
     uint8_t NrAr[8];
-    uint8_t data[4];
-} PACKED rht2d_authenticate;
-
-typedef struct {
     uint8_t key[6];
-    uint8_t data[4];
-} PACKED rht2d_crypto;
+    uint8_t pwd[4];
 
-typedef struct {
+    // Hitag 1 section.
+    // will reuse pwd or key field.
     uint8_t key_no;
     uint8_t logdata_0[4];
     uint8_t logdata_1[4];
     uint8_t nonce[4];
-    uint8_t key[4];
-} PACKED rht1d_authenticate;
+} PACKED lf_hitag_data_t;
 
-typedef union {
-    rht2d_password     pwd;
-    rht1d_authenticate ht1auth;
-    rht2d_authenticate auth;
-    rht2d_crypto       crypto;
-} hitag_data;
-
+typedef struct {
+    int status;
+    uint8_t data[256];
+} PACKED lf_hitag_crack_response_t;
 
 //---------------------------------------------------------
 // Hitag S

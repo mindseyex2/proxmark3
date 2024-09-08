@@ -19,6 +19,7 @@
 #define CMDHFLIST_H
 
 #include "common.h"
+#include "mifare/mifaredefault.h"  // mifare consts
 
 typedef struct {
     uint32_t uid;       // UID
@@ -34,6 +35,7 @@ typedef struct {
     bool first_auth;    // is first authentication
     uint32_t ks2;       // ar ^ ar_enc
     uint32_t ks3;       // at ^ at_enc
+    uint8_t mem[MIFARE_4K_MAX_BYTES];
 } AuthData_t;
 
 void ClearAuthData(void);
@@ -56,6 +58,11 @@ void annotateIso7816(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize);
 void annotateIso14443b(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize);
 void annotateIso14443a(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize, bool is_response);
 void annotateMfDesfire(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize);
+const char *mfpGetAnnotationForCode(uint8_t code);
+const char *mfpGetEncryptedForCode(uint8_t code);
+const char *mfpGetResponseMacedForCode(uint8_t code);
+const char *mfpGetCommandMacedForCode(uint8_t code);
+void annotateMfPlus(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize);
 void annotateMifare(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize,
                     const uint8_t *parity, uint8_t paritysize, bool isResponse);
 void annotateLTO(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize);

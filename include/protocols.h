@@ -158,6 +158,8 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ICLASS_DEBIT(x)             (((x) & 0x80) == 0x80)
 
 
+#define ECP_HEADER                  0x6A
+
 // 7bit Apple Magsafe wake up command
 #define MAGSAFE_CMD_WUPA_1          0x7A
 #define MAGSAFE_CMD_WUPA_2          0x7B
@@ -176,6 +178,7 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO14443A_CMD_RATS          0xE0
 #define ISO14443A_CMD_PPS           0xD0
 #define ISO14443A_CMD_NXP_DESELECT  0xC2
+#define ISO14443A_CMD_WTX           0xF2
 
 #define MIFARE_SELECT_CT            0x88
 #define MIFARE_AUTH_KEYA            0x60
@@ -188,8 +191,16 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define MIFARE_CMD_RESTORE          0xC2
 #define MIFARE_CMD_TRANSFER         0xB0
 
+#define MIFARE_MAGIC_GDM_WUPC1      0x20
+#define MIFARE_MAGIC_GDM_WUPC2      0x23
+#define MIFARE_MAGIC_GDM_AUTH_KEY   0x80
+#define MIFARE_MAGIC_GDM_READBLOCK  0x38
+#define MIFARE_MAGIC_GDM_WRITEBLOCK 0xA8
+#define MIFARE_MAGIC_GDM_READ_CFG   0xE0
+#define MIFARE_MAGIC_GDM_WRITE_CFG  0xE1
+
 #define MIFARE_EV1_PERSONAL_UID     0x40
-#define MIFARE_EV1_SETMODE          0x43
+#define MIFARE_EV1_SETMOD           0x43
 #define MIFARE_EV1_UIDF0            0x00
 #define MIFARE_EV1_UIDF1            0x40
 #define MIFARE_EV1_UIDF2            0x20
@@ -213,10 +224,16 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define MIFARE_ULNANO_WRITESIG      0xA9
 #define MIFARE_ULNANO_LOCKSIG       0xAC
 
+#define MIFARE_ULAES_AUTH_1         0x1A
+#define MIFARE_ULAES_AUTH_2         0xAF
+
 // NTAG i2k 2K  uses sector 0, and sector 1 to have access to
 // block 0x00-0xFF.
 #define NTAG_I2C_SELECT_SECTOR      0xC2
 #define NTAG_I2C_FASTWRITE          0xA6
+
+//NTAG 213TT (tamper) command
+#define NTAGTT_CMD_READ_TT          0xA4
 
 // mifare 4bit card answers
 #define CARD_ACK      0x0A  // 1010 - ACK
@@ -242,14 +259,40 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define MAGIC_WIPE                  0x40
 #define MAGIC_SINGLE                (MAGIC_WUPC | MAGIC_HALT | MAGIC_INIT | MAGIC_OFF) //0x1E
 
-// by CMD_HF_MIFARE_CIDENT
-#define MAGIC_GEN_1A        1
-#define MAGIC_GEN_1B        2
-#define MAGIC_GEN_2         4
-#define MAGIC_GEN_UNFUSED   5
-#define MAGIC_SUPER         6
-#define MAGIC_NTAG21X       7
-#define MAGIC_GEN_3         8
+// by CMD_HF_MIFARE_CIDENT / Flags
+#define MAGIC_FLAG_NONE          0x0000
+#define MAGIC_FLAG_GEN_1A        0x0001
+#define MAGIC_FLAG_GEN_1B        0x0002
+#define MAGIC_FLAG_GEN_2         0x0004
+#define MAGIC_FLAG_GEN_UNFUSED   0x0008
+#define MAGIC_FLAG_SUPER_GEN1    0x0010
+#define MAGIC_FLAG_SUPER_GEN2    0x0020
+#define MAGIC_FLAG_NTAG21X       0x0040
+#define MAGIC_FLAG_GEN_3         0x0080
+#define MAGIC_FLAG_GEN_4GTU      0x0100
+#define MAGIC_FLAG_GDM_AUTH      0x0200
+#define MAGIC_FLAG_QL88          0x0400
+#define MAGIC_FLAG_GDM_WUP_20    0x0800
+#define MAGIC_FLAG_GDM_WUP_40    0x1000
+
+
+// Commands for configuration of Gen4 GTU cards.
+// see https://github.com/RfidResearchGroup/proxmark3/blob/master/doc/magic_cards_notes.md
+#define GEN_4GTU_CMD    0xCF // Prefix for all commands, followed by pasword (4b)
+#define GEN_4GTU_SHADOW 0x32 // Configure GTU shadow mode
+#define GEN_4GTU_ATS    0x34 // Configure ATS
+#define GEN_4GTU_ATQA   0x35 // Configure ATQA/SAK (swap ATQA bytes)
+#define GEN_4GTU_UIDLEN 0x68 // Configure UID length
+#define GEN_4GTU_ULEN   0x69 // (De)Activate Ultralight mode
+#define GEN_4GTU_ULMODE 0x6A // Select Ultralight mode
+#define GEN_4GTU_GETCNF 0xC6 // Dump configuration
+#define GEN_4GTU_TEST   0xCC // Factory test, returns 6666
+#define GEN_4GTU_WRITE  0xCD // Backdoor write 16b block
+#define GEN_4GTU_READ   0xCE // Backdoor read 16b block
+#define GEN_4GTU_SETCNF 0xF0 // Configure all params in one cmd
+#define GEN_4GTU_FUSCNF 0xF1 // Configure all params in one cmd and fuse the configuration permanently
+#define GEN_4GTU_CHPWD  0xFE // change password
+
 /**
 06 00 = INITIATE
 0E xx = SELECT ID (xx = Chip-ID)
@@ -274,6 +317,13 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO14443B_AUTHENTICATE 0x0A
 #define ISO14443B_PING         0xBA
 #define ISO14443B_PONG         0xAB
+
+// XEROX Commands
+#define ISO14443B_XEROX_PWD             0x38
+#define ISO14443B_XEROX_WUP1            0x0D
+#define ISO14443B_XEROX_WUP2            0x5D
+#define ISO14443B_XEROX_EXT_READ_BLK    0x20
+#define ISO14443B_XEROX_READ_BLK        0x30
 
 // ASK C-ticket
 #define ASK_REQT               0x10
@@ -319,10 +369,10 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define CRYPTORF_ERR_MEMORY_ACCESS                    0xEE
 #define CRYPTORF_ERR_MEMORY_ACCESS_SEC                0xF9
 
-//First byte is 26
+// First byte is 26
 #define ISO15693_INVENTORY     0x01
 #define ISO15693_STAYQUIET     0x02
-//First byte is 02
+// First byte is 02
 #define ISO15693_READBLOCK                   0x20
 #define ISO15693_WRITEBLOCK                  0x21
 #define ISO15693_LOCKBLOCK                   0x22
@@ -362,6 +412,9 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO15693_STAYQUIET_PERSISTENT        0xBC
 #define ISO15693_READ_SIGNATURE              0xBD
 
+//
+#define ISO15693_MAGIC_WRITE                 0xE0
+
 // Topaz command set:
 #define TOPAZ_REQA                    0x26 // Request
 #define TOPAZ_WUPA                    0x52 // WakeUp
@@ -394,6 +447,9 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define PROTO_HITAGS    14
 #define PROTO_CRYPTORF  15
 #define SEOS            16
+#define PROTO_MFPLUS    17
+#define PROTO_TEXKOM    18
+#define PROTO_XEROX     19
 
 // Picopass fuses
 #define FUSE_FPERS   0x80
@@ -406,9 +462,10 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define FUSE_RA      0x01
 
 // Picopass Pagemode fuses
-#define PICOPASS_NON_SECURE_PAGEMODE 0x01
-#define PICOPASS_SECURE_PAGEMODE     0x11
-
+#define PICOPASS_SECURE_PAGEMODE_AUTH_DISABLED      0x00
+#define PICOPASS_NON_SECURE_PAGEMODE                0x01
+#define PICOPASS_SECURE_PAGEMODE_KEYS_LOCKED        0x02
+#define PICOPASS_SECURE_PAGEMODE_KEYS_MODIFIABLE    0x03
 
 // ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO7816_READ_BINARY             0xB0
@@ -429,100 +486,217 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO7816_MANAGE_CHANNEL          0x70
 
 #define ISO7816_GET_RESPONSE            0xC0
+
 // ISO7816-4 For response APDU's
-#define ISO7816_OK                      0x9000
-// 6x xx = ERROR
+#define ISO7816_OK                              0x9000
+
+// 6x xx = APDU ERROR CODES
+
+// 61 xx
+#define ISO7816_BYTES_REMAINING_00              0x6100 // Response bytes remaining
+
+// 62 xx
+#define ISO7816_WARNING_STATE_UNCHANGED         0x6200 // Warning, card state unchanged
+#define ISO7816_DATA_CORRUPT                    0x6281 // Returned data may be corrupted
+#define ISO7816_FILE_EOF                        0x6282 // The end of the file has been reached before the end of reading
+#define ISO7816_INVALID_DF                      0x6283 // Invalid DF
+#define ISO7816_INVALID_FILE                    0x6284 // Selected file is not valid
+#define ISO7816_FILE_TERMINATED                 0x6285 // File is terminated
+
+// 63 xx
+#define ISO7816_AUTH_FAILED                     0x6300 // Authentification failed
+#define ISO7816_FILE_FILLED                     0x6381 // File filled up by the last write
+
+// 65 xx
+#define ISO7816_MEMORY_FULL                     0x6501 // Memory failure
+#define ISO7816_WRITE_MEMORY_ERR                0x6581 // Write problem / Memory failure / Unknown mode
+
+// 67 xx
+#define ISO7816_WRONG_LENGTH                    0x6700 // Wrong length
+
+// 68 xx
+#define ISO7816_LOGICAL_CHANNEL_NOT_SUPPORTED   0x6881 // Card does not support the operation on the specified logical channel
+#define ISO7816_SECURE_MESSAGING_NOT_SUPPORTED  0x6882 // Card does not support secure messaging
+#define ISO7816_LAST_COMMAND_EXPECTED           0x6883 // Last command in chain expected
+#define ISO7816_COMMAND_CHAINING_NOT_SUPPORTED  0x6884 // Command chaining not supported
+
+// 69 xx
+#define ISO7816_TRANSACTION_FAIL                0x6900 // No successful transaction executed during session
+#define ISO7816_SELECT_FILE_ERR                 0x6981 // Cannot select indicated file, command not compatible with file organization
+#define ISO7816_SECURITY_STATUS_NOT_SATISFIED   0x6982 // Security condition not satisfied
+#define ISO7816_FILE_INVALID                    0x6983 // File invalid
+#define ISO7816_DATA_INVALID                    0x6984 // Data invalid
+#define ISO7816_CONDITIONS_NOT_SATISFIED        0x6985 // Conditions of use not satisfied
+#define ISO7816_COMMAND_NOT_ALLOWED             0x6986 // Command not allowed (no current EF)
+#define ISO7816_SM_DATA_MISSING                 0x6987 // Expected SM data objects missing
+#define ISO7816_SM_DATA_INCORRECT               0x6988 // SM data objects incorrect
+#define ISO7816_APPLET_SELECT_FAILED            0x6999 // Applet selection failed
+
+// 6A xx
+#define ISO7816_INVALID_P1P2                    0x6A00 // Bytes P1 and/or P2 are invalid
+#define ISO7816_WRONG_DATA                      0x6A80 // Wrong data
+#define ISO7816_FUNC_NOT_SUPPORTED              0x6A81 // Function not supported
+#define ISO7816_FILE_NOT_FOUND                  0x6A82 // File not found
+#define ISO7816_RECORD_NOT_FOUND                0x6A83 // Record not found
+#define ISO7816_FILE_FULL                       0x6A84 // Not enough memory space in the file
+#define ISO7816_LC_TLV_CONFLICT                 0x6A85 // LC / TLV conlict
+#define ISO7816_INCORRECT_P1P2                  0x6A86 // Incorrect parameters (P1,P2)
+#define ISO7816_FILE_EXISTS                     0x6A89 // File exists
+#define ISO7816_NOT_IMPLEMENTED                 0x6AFF //
+
+// 6x 00
+#define ISO7816_WRONG_P1P2                      0x6B00 // Incorrect parameters (P1,P2)
+#define ISO7816_CORRECT_LENGTH_00               0x6C00 // Correct Expected Length (Le)
+#define ISO7816_INS_NOT_SUPPORTED               0x6D00 // INS value not supported
+#define ISO7816_CLA_NOT_SUPPORTED               0x6E00 // CLA value not supported
+#define ISO7816_UNKNOWN                         0x6F00 // No precise diagnosis
+
 
 // MIFARE DESFire command set:
-#define MFDES_AUTHENTICATE              0x0A  // AUTHENTICATE_NATIVE
-#define MFDES_AUTHENTICATE_ISO          0x1A  // AUTHENTICATE_STANDARD
-#define MFDES_AUTHENTICATE_AES          0xAA
+#define MFDES_AUTHENTICATE               0x0A  // AUTHENTICATE_NATIVE
+#define MFDES_AUTHENTICATE_ISO           0x1A  // AUTHENTICATE_STANDARD
+#define MFDES_AUTHENTICATE_AES           0xAA
 
 //  Leakage Resilient Primitive (LRP)
-#define MFDES_AUTHENTICATE_EV2F         0x71  // LRP, AuthenticateLRPFirst
-#define MFDES_AUTHENTICATE_EV2NF        0x77  // LRP, AuthenticateLRPNonFirst
+#define MFDES_AUTHENTICATE_EV2F          0x71  // LRP, AuthenticateLRPFirst
+#define MFDES_AUTHENTICATE_EV2NF         0x77  // LRP, AuthenticateLRPNonFirst
 
-#define MFDES_CREDIT                    0x0C
-#define MFDES_LIMITED_CREDIT            0x1C
-#define MFDES_WRITE_RECORD              0x3B
-#define MFDES_READSIG                   0x3C
-#define MFDES_WRITE_DATA                0x3D
-#define MFDES_GET_KEY_SETTINGS          0x45
-#define MFDES_GET_UID                   0x51
-#define MFDES_CHANGE_KEY_SETTINGS       0x54
-#define MFDES_ROLL_KEY_SETTINGS         0x55
-#define MFDES_INIT_KEY_SETTINGS         0x56
-#define MFDES_FINALIZE_KEY_SETTINGS     0x57
-#define MFDES_SELECT_APPLICATION        0x5A
-#define MFDES_CHANGE_CONFIGURATION      0x5C
-#define MFDES_CHANGE_FILE_SETTINGS      0x5F
-#define MFDES_GET_VERSION               0x60
-#define MFDES_GET_ISOFILE_IDS           0x61
-#define MFDES_GET_KEY_VERSION           0x64
-#define MFDES_GET_DELEGATE_INFO         0x69
-#define MFDES_GET_APPLICATION_IDS       0x6A
-#define MFDES_GET_VALUE                 0x6C
-#define MFDES_GET_FREE_MEMORY           0x6E
-#define MFDES_GET_DF_NAMES              0x6D
-#define MFDES_GET_FILE_IDS              0x6F
-#define MFDES_WRITE_RECORD2             0x8B
-#define MFDES_WRITE_DATA2               0x8D
-#define MFDES_ABORT_TRANSACTION         0xA7
-#define MFDES_READ_RECORDS2             0xAB
-#define MFDES_READ_DATA2                0xAD
-#define MFDES_ADDITIONAL_FRAME          0xAF
-#define MFDES_UPDATE_RECORD2            0xBA
-#define MFDES_READ_RECORDS              0xBB
-#define MFDES_READ_DATA                 0xBD
-#define MFDES_CREATE_CYCLIC_RECORD_FILE 0xC0
-#define MFDES_CREATE_LINEAR_RECORD_FILE 0xC1
-#define MFDES_CHANGE_KEY                0xC4
-#define MFDES_CHANGE_KEY_EV2            0xC6
-#define MFDES_COMMIT_TRANSACTION        0xC7
-#define MFDES_COMMIT_READER_ID          0xC8
-#define MFDES_CREATE_DELEGATE_APP       0xC9
-#define MFDES_CREATE_APPLICATION        0xCA
-#define MFDES_CREATE_BACKUP_DATA_FILE   0xCB
-#define MFDES_CREATE_VALUE_FILE         0xCC
-#define MFDES_CREATE_STD_DATA_FILE      0xCD
-#define MFDES_CREATE_TRANS_MAC_FILE     0xCE
-#define MFDES_DELETE_APPLICATION        0xDA
-#define MFDES_UPDATE_RECORD             0xDB
-#define MFDES_DEBIT                     0xDC
-#define MFDES_DELETE_FILE               0xDF
-#define MFDES_CLEAR_RECORD_FILE         0xEB
-#define MFDES_PREPARE_PC                0xF0
-#define MFDES_PROXIMITY_CHECK           0xF2
-#define MFDES_GET_FILE_SETTINGS         0xF5
-#define MFDES_FORMAT_PICC               0xFC
-#define MFDES_VERIFY_PC                 0xFD
-#define MFDES_NATIVE_ISO7816_WRAP_CLA   0x90
+#define MFDES_CREDIT                     0x0C
+#define MFDES_LIMITED_CREDIT             0x1C
+#define MFDES_WRITE_RECORD               0x3B
+#define MFDES_READSIG                    0x3C
+#define MFDES_WRITE_DATA                 0x3D
+#define MFDES_GET_KEY_SETTINGS           0x45
+#define MFDES_GET_UID                    0x51
+#define MFDES_CHANGE_KEY_SETTINGS        0x54
+#define MFDES_ROLL_KEY_SETTINGS          0x55
+#define MFDES_INIT_KEY_SETTINGS          0x56
+#define MFDES_FINALIZE_KEY_SETTINGS      0x57
+#define MFDES_SELECT_APPLICATION         0x5A
+#define MFDES_CHANGE_CONFIGURATION       0x5C
+#define MFDES_CHANGE_FILE_SETTINGS       0x5F
+#define MFDES_GET_VERSION                0x60
+#define MFDES_GET_ISOFILE_IDS            0x61
+#define MFDES_GET_KEY_VERSION            0x64
+#define MFDES_GET_DELEGATE_INFO          0x69
+#define MFDES_GET_APPLICATION_IDS        0x6A
+#define MFDES_GET_VALUE                  0x6C
+#define MFDES_GET_FREE_MEMORY            0x6E
+#define MFDES_GET_DF_NAMES               0x6D
+#define MFDES_GET_FILE_IDS               0x6F
+#define MFDES_WRITE_RECORD2              0x8B
+#define MFDES_WRITE_DATA2                0x8D
+#define MFDES_ABORT_TRANSACTION          0xA7
+#define MFDES_READ_RECORDS2              0xAB
+#define MFDES_READ_DATA2                 0xAD
+#define MFDES_ADDITIONAL_FRAME           0xAF
+#define MFDES_UPDATE_RECORD2             0xBA
+#define MFDES_READ_RECORDS               0xBB
+#define MFDES_READ_DATA                  0xBD
+#define MFDES_CREATE_CYCLIC_RECORD_FILE  0xC0
+#define MFDES_CREATE_LINEAR_RECORD_FILE  0xC1
+#define MFDES_CHANGE_KEY                 0xC4
+#define MFDES_CHANGE_KEY_EV2             0xC6
+#define MFDES_COMMIT_TRANSACTION         0xC7
+#define MFDES_COMMIT_READER_ID           0xC8
+#define MFDES_CREATE_DELEGATE_APP        0xC9
+#define MFDES_CREATE_APPLICATION         0xCA
+#define MFDES_CREATE_BACKUP_DATA_FILE    0xCB
+#define MFDES_CREATE_VALUE_FILE          0xCC
+#define MFDES_CREATE_STD_DATA_FILE       0xCD
+#define MFDES_CREATE_TRANS_MAC_FILE      0xCE
+#define MFDES_DELETE_APPLICATION         0xDA
+#define MFDES_UPDATE_RECORD              0xDB
+#define MFDES_DEBIT                      0xDC
+#define MFDES_DELETE_FILE                0xDF
+#define MFDES_CLEAR_RECORD_FILE          0xEB
+#define MFDES_NOTIFY_TRANSACTION_SUCCESS 0xEE  // New command. Used by Apple-ECP-compliant DESFire readers to signify successful transaction
+#define MFDES_PREPARE_PC                 0xF0
+#define MFDES_PROXIMITY_CHECK            0xF2
+#define MFDES_GET_FILE_SETTINGS          0xF5
+#define MFDES_FORMAT_PICC                0xFC
+#define MFDES_VERIFY_PC                  0xFD
+#define MFDES_NATIVE_ISO7816_WRAP_CLA    0x90
+
 
 // MIFARE DESFire status & error codes:
-#define MFDES_S_OPERATION_OK            0x00
-#define MFDES_S_NO_CHANGES              0x0C
-#define MFDES_S_SIGNATURE               0x90
-#define MFDES_S_ADDITIONAL_FRAME        0xAF
+#define MFDES_S_OPERATION_OK             0x00
+#define MFDES_S_NO_CHANGES               0x0C
+#define MFDES_S_SIGNATURE                0x90
+#define MFDES_S_ADDITIONAL_FRAME         0xAF
 
-#define MFDES_E_OUT_OF_EEPROM           0x0E
-#define MFDES_E_ILLEGAL_COMMAND_CODE    0x1C
-#define MFDES_E_INTEGRITY_ERROR         0x1E
-#define MFDES_E_NO_SUCH_KEY             0x40
-#define MFDES_E_LENGTH                  0x7E
-#define MFDES_E_PERMISSION_DENIED       0x9D
-#define MFDES_E_PARAMETER_ERROR         0x9E
-#define MFDES_E_APPLICATION_NOT_FOUND   0xA0
-#define MFDES_E_APPL_INTEGRITY          0xA1
-#define MFDES_E_AUTHENTICATION_ERROR  0xAE
-#define MFDES_E_BOUNDARY                0xBE
-#define MFDES_E_PICC_INTEGRITY          0xC1
-#define MFDES_E_COMMAND_ABORTED         0xCA
-#define MFDES_E_PICC_DISABLED           0xCD
-#define MFDES_E_COUNT                   0xCE
-#define MFDES_E_DUPLICATE               0xDE
-#define MFDES_E_EEPROM                  0xEE
-#define MFDES_E_FILE_NOT_FOUND          0xF0
-#define MFDES_E_FILE_INTEGRITY          0xF1
+#define MFDES_E_OUT_OF_EEPROM            0x0E
+#define MFDES_E_ILLEGAL_COMMAND_CODE     0x1C
+#define MFDES_E_INTEGRITY_ERROR          0x1E
+#define MFDES_E_NO_SUCH_KEY              0x40
+#define MFDES_E_LENGTH                   0x7E
+#define MFDES_E_PERMISSION_DENIED        0x9D
+#define MFDES_E_PARAMETER_ERROR          0x9E
+#define MFDES_E_APPLICATION_NOT_FOUND    0xA0
+#define MFDES_E_APPL_INTEGRITY           0xA1
+#define MFDES_E_AUTHENTICATION_ERROR     0xAE
+#define MFDES_E_BOUNDARY                 0xBE
+#define MFDES_E_PICC_INTEGRITY           0xC1
+#define MFDES_E_COMMAND_ABORTED          0xCA
+#define MFDES_E_PICC_DISABLED            0xCD
+#define MFDES_E_COUNT                    0xCE
+#define MFDES_E_DUPLICATE                0xDE
+#define MFDES_E_EEPROM                   0xEE
+#define MFDES_E_FILE_NOT_FOUND           0xF0
+#define MFDES_E_FILE_INTEGRITY           0xF1
+
+
+// MIFARE PLus EV2 Command set
+// source: https://www.nxp.com/docs/en/data-sheet/MF1P(H)x2.pdf in Look-Up Tables
+
+#define MFP_READ_SIG                    0x3C // same as DESFIRE
+#define MFP_WRITEPERSO                  0xA8
+#define MFP_COMMITPERSO                 0xAA
+
+#define MFP_AUTHENTICATEFIRST           0x70
+#define MFP_AUTHENTICATEFIRST_VARIANT   0x73
+#define MFP_AUTHENTICATENONFIRST        0x76
+#define MFP_AUTHENTICATECONTINUE        0x72
+#define MFP_AUTHENTICATESECTORSWITCH    0x7A
+#define MFP_RESETAUTH                   0x78
+
+#define MFP_VCSUPPORTLASTISOL3          0x4B
+#define MFP_ISOSELECT                   0xA4
+
+#define MFP_GETVERSION                  0x60 // same as DESFIRE
+#define MFP_ADDITIONALFRAME             0xAF
+#define MFP_SETCONFIGSL1                0x44
+#define MFP_MF_PERSONALIZEUIDUSAGE      0x40
+
+// read commands
+#define MFP_READENCRYPTEDNOMAC_MACED    0X30
+#define MFP_READENCRYPTEDMAC_MACED      0x31
+#define MFP_READPLAINNOMAC_MACED        0x32
+#define MFP_READPLAINMAC_MACED          0x33
+#define MFP_READENCRYPTEDNOMAC_UNMACED  0x34
+#define MFP_READENCRYPTEDMAC_UNMACED    0X35
+#define MFP_READPLAINNOMAC_UNMACED      0x36
+#define MFP_READPLAINMAC_UNMACED        0x37
+
+// write commands
+#define MFP_WRITEENCRYPTEDNOMAC         0xA0
+#define MFP_WRITEENCRYPTEDMAC           0xA1
+#define MFP_WRITEPLAINNOMAC             0xA2
+#define MFP_WRITEPLAINMAC               0xA3
+
+// value commands
+#define MFP_INCREMENTNOMAC              0xB0
+#define MFP_INCREMENTMAC                0xB1
+#define MFP_DECREMENTNOMAC              0xB2
+#define MFP_DECREMENTMAC                0xB3
+#define MFP_TRANSFERNOMAC               0xB4
+#define MFP_TRANSFERMAC                 0xB5
+#define MFP_INCREMENTTRANSFERNOMAC      0xB6
+#define MFP_INCREMENTTRANSFERMAC        0xB7
+#define MFP_DECREMENTTRANSFERNOMAC      0xB8
+#define MFP_DECREMENTTRANSFERMAC        0xB9
+#define MFP_RESTORENOMAC                0xC2
+#define MFP_RESTOREMAC                  0xC3
 
 
 // LEGIC Commands
@@ -593,6 +767,7 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 
 // em4x05 & em4x69 chip configuration register definitions
 #define EM4x05_GET_BITRATE(x)           ((((x) & 0x3F) * 2) + 2)
+// Note: only data rates 8, 16, 32, 40(*) and 64 are supported. (*) only with EM4305 330pF
 #define EM4x05_SET_BITRATE(x)           (((x) - 2) / 2)
 #define EM4x05_MODULATION_NRZ           0x00000000
 #define EM4x05_MODULATION_MANCHESTER    0x00000040
@@ -721,33 +896,40 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define CALYPSO_SAM_SV_DEBIT            0x54
 #define CALYPSO_SAM_SV_RELOAD           0x56
 
-// HITAG1 commands
-#define HITAG1_SET_CCNEW                0xC2    // left 5 bits only
+// HITAG 1 commands
+#define HITAG1_SET_CC                   0x30    // higher 5 bits only
+#define HITAG1_SET_CCNEW                0xC8    // higher 5 bits only
 #define HITAG1_READ_ID                  0x00    // not a real command, consists of 5 bits length, <length> bits partial SN, 8 bits CRC
-#define HITAG1_SELECT                   0x00    // left 5 bits only, followed by 32 bits SN and 8 bits CRC
-#define HITAG1_WRPPAGE                  0x80    // left 4 bits only, followed by 8 bits page and 8 bits CRC
-#define HITAG1_WRPBLK                   0x90    // left 4 bits only, followed by 8 bits block and 8 bits CRC
-#define HITAG1_WRCPAGE                  0xA0    // left 4 bits only, followed by 8 bits page or key information and 8 bits CRC
-#define HITAG1_WRCBLK                   0xB0    // left 4 bits only, followed by 8 bits block and 8 bits CRC
-#define HITAG1_RDPPAGE                  0xC0    // left 4 bits only, followed by 8 bits page and 8 bits CRC
-#define HITAG1_RDPBLK                   0xD0    // left 4 bits only, followed by 8 bits block and 8 bits CRC
-#define HITAG1_RDCPAGE                  0xE0    // left 4 bits only, followed by 8 bits page and 8 bits CRC
-#define HITAG1_RDCBLK                   0xF0    // left 4 bits only, followed by 8 bits block and 8 bits CRC
-#define HITAG1_HALT                     0x70    // left 4 bits only, followed by 8 bits (dummy) page and 8 bits CRC
+#define HITAG1_SELECT                   0x00    // higher 5 bits only, followed by 32 bits SN and 8 bits CRC
+#define HITAG1_WRPPAGE                  0x80    // higher 4 bits only, followed by 8 bits page and 8 bits CRC
+#define HITAG1_WRPBLK                   0x90    // higher 4 bits only, followed by 8 bits block and 8 bits CRC
+#define HITAG1_WRCPAGE                  0xA0    // higher 4 bits only, followed by 8 bits page or key information and 8 bits CRC
+#define HITAG1_WRCBLK                   0xB0    // higher 4 bits only, followed by 8 bits block and 8 bits CRC
+#define HITAG1_RDPPAGE                  0xC0    // higher 4 bits only, followed by 8 bits page and 8 bits CRC
+#define HITAG1_RDPBLK                   0xD0    // higher 4 bits only, followed by 8 bits block and 8 bits CRC
+#define HITAG1_RDCPAGE                  0xE0    // higher 4 bits only, followed by 8 bits page and 8 bits CRC
+#define HITAG1_RDCBLK                   0xF0    // higher 4 bits only, followed by 8 bits block and 8 bits CRC
+#define HITAG1_HALT                     0x70    // higher 4 bits only, followed by 8 bits (dummy) page and 8 bits CRC
 
-// HITAG2 commands
-#define HITAG2_START_AUTH               0x3    // left 5 bits only
-#define HITAG2_HALT                     0x0    // left 5 bits only
-
-#define HITAG2_READ_PAGE                0x3    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
-#define HITAG2_READ_PAGE_INVERTED       0x1    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
-#define HITAG2_WRITE_PAGE               0x2   // page number in bits 5 to 3, page number
+// HITAG 2 commands
+#define HITAG2_START_AUTH               0xC0    // left 5 bits only
+#define HITAG2_READ_PAGE                0xC0    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
+#define HITAG2_READ_PAGE_INVERTED       0x44    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
+#define HITAG2_WRITE_PAGE               0x82    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
+#define HITAG2_HALT                     0x00    // left 5 bits only
 
 
 // HITAG S commands
-#define HITAGS_QUIET                    0x70
-//inverted in bit 0 and following 2 bits
-#define HITAGS_WRITE_BLOCK              0x90
+#define HITAGS_UID_REQ_STD              0x30    // 00110 UID REQUEST Std
+#define HITAGS_UID_REQ_ADV              0xC0    // 11000 UID REQUEST Adv
+#define HITAGS_UID_REQ_ADV2             0xC8    // 11001 UID REQUEST Adv
+#define HITAGS_UID_REQ_FADV             0xD0    // 11010 UID REQUEST FAdv
+#define HITAGS_SELECT                   0x00    // 00000 SELECT (UID)
+#define HITAGS_READ_PAGE                0xC0    // 1100 READ PAGE
+#define HITAGS_READ_BLOCK               0xD0    // 1101 READ BLOCK
+#define HITAGS_WRITE_PAGE               0x80    // 1000 WRITE PAGE
+#define HITAGS_WRITE_BLOCK              0x90    // 1001 WRITE BLOCK
+#define HITAGS_QUIET                    0x70    // 0111 QUIET
 
 // LTO-CM commands
 #define LTO_REQ_STANDARD                0x45

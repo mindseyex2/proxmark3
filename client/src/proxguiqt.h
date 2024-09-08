@@ -29,6 +29,8 @@
 #include <QPainter>
 #include <QtGui>
 
+#include "proxgui.h"
+#include "graph.h"
 #include "ui/ui_overlays.h"
 #include "ui/ui_image.h"
 
@@ -38,33 +40,45 @@ class ProxWidget;
  * @brief The actual plot, black area were we paint the graph
  */
 class Plot: public QWidget {
+    Q_OBJECT; //needed for slot/signal classes
+
   private:
     QWidget *master;
     double g_GraphPixelsPerPoint; // How many visual pixels are between each sample point (x axis)
-    uint32_t CursorAPos;
-    uint32_t CursorBPos;
     void PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRect, QPainter *painter, int graphNum);
     void PlotDemod(uint8_t *buffer, size_t len, QRect plotRect, QRect annotationRect, QPainter *painter, int graphNum, uint32_t plotOffset);
     void plotGridLines(QPainter *painter, QRect r);
+    void plotOperations(int *buffer, size_t len, QPainter *painter, QRect rect);
+    void drawAnnotations(QRect annotationRect, QPainter *painter);
+    void draw_marker(marker_t marker, QRect plotRect, QColor color, QPainter *painter);
     int xCoordOf(int i, QRect r);
     int yCoordOf(int v, QRect r, int maxVal);
     int valueOf_yCoord(int y, QRect r, int maxVal);
     void setMaxAndStart(int *buffer, size_t len, QRect plotRect);
+    void appendMax(int *buffer, size_t len, QRect plotRect);
     QColor getColor(int graphNum);
 
   public:
     Plot(QWidget *parent = 0);
 
+  public slots:
+    void Zoom(double factor, uint32_t refX);
+    void MoveTo(uint32_t pos);
+    void MoveTo(int pos);
+    void Move(int offset);
+
   protected:
     void paintEvent(QPaintEvent *event);
     void closeEvent(QCloseEvent *event);
-    void Zoom(double factor, uint32_t refX);
-    void Move(int offset);
     void Trim(void);
     void wheelEvent(QWheelEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
     void mousePressEvent(QMouseEvent *event) { mouseMoveEvent(event); }
     void keyPressEvent(QKeyEvent *event);
+
+  signals:
+    void startMaxChanged(uint32_t startMax);
+    void graphStartChanged(uint32_t graphStart);
 };
 class ProxGuiQT;
 
@@ -97,6 +111,7 @@ class ProxWidget : public QWidget {
     Plot *plot;
     Ui::Form *opsController;
     SliderWidget *controlWidget;
+    QSlider *navSlider;
 
   public:
     ProxWidget(QWidget *parent = 0, ProxGuiQT *master = NULL);
@@ -120,6 +135,7 @@ class ProxWidget : public QWidget {
     void vchange_askedge(int v);
     void vchange_dthr_up(int v);
     void vchange_dthr_down(int v);
+    void updateNavSlider(void);
 };
 
 class WorkerThread : public QThread {
@@ -156,7 +172,7 @@ class ProxGuiQT : public QObject {
     void HideGraphWindow(void);
 
     // hook up picture viewer
-    void ShowPictureWindow(char *fn);
+    void ShowPictureWindow(const QImage &img);
     void ShowBase64PictureWindow(char *b64);
     void HidePictureWindow(void);
     void RepaintPictureWindow(void);
@@ -170,7 +186,7 @@ class ProxGuiQT : public QObject {
     void _HideGraphWindow(void);
 
     // hook up picture viewer
-    void _ShowPictureWindow(char *fn);
+    void _ShowPictureWindow(const QImage &img);
     void _ShowBase64PictureWindow(char *b64);
     void _HidePictureWindow(void);
     void _RepaintPictureWindow(void);
@@ -185,7 +201,7 @@ class ProxGuiQT : public QObject {
     void ExitSignal(void);
 
     // hook up picture viewer signals
-    void ShowPictureWindowSignal(char *fn);
+    void ShowPictureWindowSignal(const QImage &img);
     void ShowBase64PictureWindowSignal(char *b64);
     void HidePictureWindowSignal(void);
     void RepaintPictureWindowSignal(void);

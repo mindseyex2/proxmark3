@@ -94,6 +94,7 @@
 |hf_14a_mfu-sim.trace                     |Trace seen from a Proxmark3 simulating a MFU|
 |hf_14b_reader.trace                      |Execution of `hf 14b reader` against a card|
 |hf_14b_cryptorf_select.trace             |Sniff of libnfc select / anticollision ofa cryptoRF tag|
+|hf_14b_xerox_info.trace                  |Execution of `hf xerox info` against a tag|
 |hf_15_reader.trace                       |Execution of `hf 15 reader` against a card|
 |hf_mfp_mad_sl3.trace                     |`hf mfp mad`|
 |hf_mfp_read_sc0_sl3.trace                |`hf mfp rdsc --sn 0 -k ...`|
@@ -102,3 +103,11 @@
 |hf_visa_apple_transit_bypass.trace       |Sniff of VISA Apple transaction bypass|
 |hf_mfdes_sniff.trace                     |Sniff of HID reader reading a MIFARE DESFire SIO card|
 |hf_iclass_sniff.trace                    |Sniff of HID reader reading a Picopass 2k card|
+|hf_mf_hid_sio_sim.trace                  |Simulation of a HID SIO MFC 1K card|
+
+## LF demodulated traces
+
+|filename|description|
+|--------|-----------|
+|lf_hitag_crypto_dump.trace              |Execution of `lf hitag dump --crypto` against Hitag2 card in crypto mode|
+

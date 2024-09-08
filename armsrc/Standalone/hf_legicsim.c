@@ -68,8 +68,10 @@ static bool fill_eml_from_file(char *dumpfile) {
     }
     //read and load dump file
     BigBuf_Clear();
-    if (g_dbglevel >= DBG_INFO)
-        Dbprintf(_YELLOW_("Found dump file %s. Uploading to emulator memory..."), dumpfile);
+    if (g_dbglevel >= DBG_INFO) {
+        Dbprintf("Found dump file... `" _YELLOW_("%s") "`", dumpfile);
+        Dbprintf("Uploading to emulator memory...");
+    }
     uint8_t *emCARD = BigBuf_get_EM_addr();
     rdv40_spiffs_read_as_filetype(dumpfile, emCARD, size, RDV40_SPIFFS_SAFETY_SAFE);
     return true;
@@ -111,7 +113,7 @@ void RunMod(void) {
         //Indicate which card will be simulated
         LED(i, 0);
 
-        //Try to load dump form flash
+        //Try to load dump from flash
         sprintf(cur_dump_file, HF_LEGICSIM_DUMPFILE_SIM, i);
         Dbprintf(_YELLOW_("[Slot: %d] Try to load dump file: %s"), i, cur_dump_file);
         if (!fill_eml_from_file(cur_dump_file)) {

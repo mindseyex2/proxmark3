@@ -471,7 +471,7 @@ static const fdxbCountryMapping_t fdxbCountryMapping[] = {
     { 985, "HomeAgain (Destron Fearing/Digital Angel)" },
     { 991, "Peeva" },
     { 999, "Test range" },
-    { 0,   "N/A" } // must be the last entry
+    { 0,   "n/a" } // must be the last entry
 };
 
 static const char *mapFDBX(uint16_t countryCode) {
@@ -488,12 +488,13 @@ static const char *mapFDBX(uint16_t countryCode) {
 //see ASKDemod for what args are accepted
 //almost the same demod as cmddata.c/CmdFDXBdemodBI
 int demodFDXB(bool verbose) {
-    //Differential Biphase / di-phase (inverted biphase)
-    //get binary from ask wave
+    // Differential Biphase / di-phase (inverted biphase)
+    // get binary from ask wave
     if (ASKbiphaseDemod(0, 32, 1, 100, false) != PM3_SUCCESS) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - FDX-B ASKbiphaseDemod failed");
         return PM3_ESOFT;
     }
+
     size_t size = g_DemodBufferLen;
     int preambleIndex = detectFDXB(g_DemodBuffer, &size);
     if (preambleIndex < 0) {
@@ -513,7 +514,6 @@ int demodFDXB(bool verbose) {
     setDemodBuff(g_DemodBuffer, 128, preambleIndex);
     setClockGrid(g_DemodClock, g_DemodStartIdx + (preambleIndex * g_DemodClock));
 
-
     // remove marker bits (1's every 9th digit after preamble) (pType = 2)
     size = removeParity(g_DemodBuffer, 11, 9, 2, 117);
     if (size != 104) {
@@ -521,7 +521,7 @@ int demodFDXB(bool verbose) {
         return PM3_ESOFT;
     }
 
-    //got a good demod
+    // got a good demod
     uint8_t offset;
     // ISO: bits 27..64
     uint64_t NationalCode = ((uint64_t)(bytebits_to_byteLSBF(g_DemodBuffer + 32, 6)) << 32) | bytebits_to_byteLSBF(g_DemodBuffer, 32);
@@ -559,31 +559,35 @@ int demodFDXB(bool verbose) {
     offset += 16;
     uint32_t extended = bytebits_to_byteLSBF(g_DemodBuffer + offset, 24);
 
-    uint64_t rawid = (uint64_t)(bytebits_to_byte(g_DemodBuffer, 32)) << 32 | bytebits_to_byte(g_DemodBuffer + 32, 32);
-    uint8_t raw[8];
-    num_to_bytes(rawid, 8, raw);
+    uint8_t raw[13] = {0};
+    for (int i = 0; i < sizeof(raw); i++) {
+        raw[i] = bytebits_to_byte(g_DemodBuffer + (i * 8), 8);
+    }
 
-    if (!verbose) {
+    if (verbose == false) {
         PROMPT_CLEARLINE;
-        PrintAndLogEx(SUCCESS, "Animal ID          " _GREEN_("%04u-%012"PRIu64), countryCode, NationalCode);
+        PrintAndLogEx(SUCCESS, "Animal ID........... " _GREEN_("%04u-%012"PRIu64), countryCode, NationalCode);
         return PM3_SUCCESS;
     }
-    PrintAndLogEx(SUCCESS, "FDX-B / ISO 11784/5 Animal");
-    PrintAndLogEx(SUCCESS, "Animal ID          " _GREEN_("%03u-%012"PRIu64), countryCode, NationalCode);
-    PrintAndLogEx(SUCCESS, "National Code      " _GREEN_("%012" PRIu64) " (0x%" PRIX64 ")", NationalCode, NationalCode);
-    PrintAndLogEx(SUCCESS, "Country Code       " _GREEN_("%03u") " - %s", countryCode, mapFDBX(countryCode));
-    PrintAndLogEx(SUCCESS, "Reserved/RFU       %u (0x%04X)", reservedCode,  reservedCode);
-    PrintAndLogEx(SUCCESS, "  Animal bit set?  %s", animalBit ? _YELLOW_("True") : "False");
-    PrintAndLogEx(SUCCESS, "      Data block?  %s  [value 0x%X]", dataBlockBit ? _YELLOW_("True") : "False", extended);
-    PrintAndLogEx(SUCCESS, "        RUDI bit?  %s", rudiBit ? _YELLOW_("True") " (advanced transponder)" : "False");
-    PrintAndLogEx(SUCCESS, "       User Info?  %u %s", userInfo, userInfo == 0 ? "(RFU)" : "");
-    PrintAndLogEx(SUCCESS, "  Replacement No?  %u %s", replacementNr, replacementNr == 0 ? "(RFU)" : "");
 
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(SUCCESS, _CYAN_("FDX-B / ISO 11784/5 Animal"));
+    PrintAndLogEx(SUCCESS, "Animal ID......... " _GREEN_("%03u-%012"PRIu64), countryCode, NationalCode);
+    PrintAndLogEx(SUCCESS, "National Code..... " _GREEN_("%012" PRIu64) " ( 0x%" PRIX64 " )", NationalCode, NationalCode);
+    PrintAndLogEx(SUCCESS, "Country Code...... " _GREEN_("%03u") " - %s", countryCode, mapFDBX(countryCode));
+    PrintAndLogEx(SUCCESS, "Reserved/RFU...... %u (0x%04X)", reservedCode,  reservedCode);
+    PrintAndLogEx(SUCCESS, "Animal bit set?... %s", animalBit ? _YELLOW_("True") : "False");
+    PrintAndLogEx(SUCCESS, "Data block?....... %s  ( 0x%X )", dataBlockBit ? _YELLOW_("True") : "False", extended);
+    PrintAndLogEx(SUCCESS, "RUDI bit?......... %s", rudiBit ? _YELLOW_("True") " ( advanced transponder )" : "False");
+    PrintAndLogEx(SUCCESS, "User Info?........ %u %s", userInfo, (userInfo == 0) ? "( RFU )" : "");
+    PrintAndLogEx(SUCCESS, "Replacement No?... %u %s", replacementNr, replacementNr == 0 ? "( RFU )" : "");
+
+    // crc only calculated over NORMAL data (8 bytes)
     uint8_t c[] = {0, 0};
-    compute_crc(CRC_11784, raw, sizeof(raw), &c[0], &c[1]);
-    PrintAndLogEx(SUCCESS, "CRC-16             0x%04X ( %s )", crc, (crc == (c[1] << 8 | c[0])) ? _GREEN_("ok") : _RED_("fail"));
+    compute_crc(CRC_11784, raw, 8, &c[0], &c[1]);
+    PrintAndLogEx(SUCCESS, "CRC-16............ 0x%04X ( %s )", crc, (crc == (c[1] << 8 | c[0])) ? _GREEN_("ok") : _RED_("fail"));
     // iceman: crc doesn't protect the extended data?
-    PrintAndLogEx(SUCCESS, "Raw                " _GREEN_("%s"), sprint_hex(raw, 8));
+    PrintAndLogEx(SUCCESS, "Raw............... " _GREEN_("%s"), sprint_hex(raw, sizeof(raw)));
 
     if (g_debugMode) {
         PrintAndLogEx(DEBUG, "Start marker %d;   Size %zu", preambleIndex, size);
@@ -601,12 +605,13 @@ int demodFDXB(bool verbose) {
         float bt_C = (bt_F - 32) / 1.8;
         PrintAndLogEx(NORMAL, "");
         PrintAndLogEx(SUCCESS, "Bio-Thermo detected");
-        PrintAndLogEx(INFO, "   temperature     " _GREEN_("%.1f")" F / " _GREEN_("%.1f") " C", bt_F, bt_C);
+        PrintAndLogEx(INFO,    "  temperature... " _GREEN_("%.1f")" F / " _GREEN_("%.1f") " C", bt_F, bt_C);
     }
 
     // set block 0 for later
     //g_DemodConfig = T55x7_MODULATION_DIPHASE | T55x7_BITRATE_RF_32 | 4 << T55x7_MAXBLOCK_SHIFT;
 
+    PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 
@@ -666,14 +671,14 @@ static int CmdFdxBReader(const char *Cmd) {
 
         if (curr_div == LF_DIVISOR_125) {
             config.divisor = LF_DIVISOR_134;
-            res = lf_config(&config);
+            res = lf_setconfig(&config);
             if (res != PM3_SUCCESS) {
                 PrintAndLogEx(ERR, "failed to change to 134 KHz LF configuration");
                 return res;
             }
         } else {
             config.divisor = LF_DIVISOR_125;
-            res = lf_config(&config);
+            res = lf_setconfig(&config);
             if (res != PM3_SUCCESS) {
                 PrintAndLogEx(ERR, "failed to change to 125 KHz LF configuration");
                 return res;
@@ -689,7 +694,7 @@ static int CmdFdxBReader(const char *Cmd) {
 
     if (old_div != curr_div) {
         config.divisor = old_div;
-        res = lf_config(&config);
+        res = lf_setconfig(&config);
         if (res != PM3_SUCCESS) {
             PrintAndLogEx(ERR, "failed to restore LF configuration");
             return res;
@@ -703,10 +708,10 @@ static int CmdFdxBClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf fdxb clone",
                   "clone a FDX-B tag to a T55x7, Q5/T5555 or EM4305/4469 tag.",
-                  "lf fdxb clone --country 999 --national 1337 --animal\n"
-                  "lf fdxb clone --country 999 --national 1337 --extended 016A\n"
-                  "lf fdxb clone --q5 --country 999 --national 1337   -> encode for Q5/T5555 tag\n"
-                  "lf fdxb clone --em --country 999 --national 1337   -> encode for EM4305/4469"
+                  "lf fdxb clone --country 999 --national 1337 --animal        -> encode for T55x7 tag, with animal bit\n"
+                  "lf fdxb clone --country 999 --national 1337 --extended 016A -> encode for T55x7 tag, with extended data\n"
+                  "lf fdxb clone --country 999 --national 1337 --q5            -> encode for Q5/T5555 tag\n"
+                  "lf fdxb clone --country 999 --national 1337 --em            -> encode for EM4305/4469"
                  );
 
     void *argtable[] = {
@@ -873,10 +878,10 @@ static int CmdFdxBSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_ASK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
-
+    }
     return PM3_SUCCESS;
 }
 
@@ -884,7 +889,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,      AlwaysAvailable, "this help"},
     {"demod",   CmdFdxBDemod,  AlwaysAvailable, "demodulate a FDX-B ISO11784/85 tag from the GraphBuffer"},
     {"reader",  CmdFdxBReader, IfPm3Lf,         "attempt to read at 134kHz and extract tag data"},
-    {"clone",   CmdFdxBClone,  IfPm3Lf,         "clone animal ID tag to T55x7 or Q5/T5555"},
+    {"clone",   CmdFdxBClone,  IfPm3Lf,         "clone animal ID tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",     CmdFdxBSim,    IfPm3Lf,         "simulate Animal ID tag"},
     {NULL, NULL, NULL, NULL}
 };

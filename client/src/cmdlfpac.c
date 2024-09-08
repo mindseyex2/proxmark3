@@ -220,10 +220,10 @@ static int CmdPacClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf pac clone",
                   "clone a PAC/Stanley tag to a T55x7, Q5/T5555 or EM4305/4469 tag.",
-                  "lf pac clone --cn CD4F5552\n"
+                  "lf pac clone --cn CD4F5552           -> encode for T55x7 tag\n"
                   "lf pac clone --cn CD4F5552 --q5      -> encode for Q5/T5555 tag\n"
                   "lf pac clone --cn CD4F5552 --em      -> encode for EM4305/4469\n"
-                  "lf pac clone --raw FF2049906D8511C593155B56D5B2649F"
+                  "lf pac clone --raw FF2049906D8511C593155B56D5B2649F -> encode for T55x7 tag, raw mode"
                  );
 
     void *argtable[] = {
@@ -236,8 +236,8 @@ static int CmdPacClone(const char *Cmd) {
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
 
-    uint8_t cnstr[9];
-    int cnlen = 9;
+    uint8_t cnstr[9] = {0};
+    int cnlen = sizeof(cnstr) - 1; // CLIGetStrWithReturn does not guarantee string to be null-terminated
     memset(cnstr, 0x00, sizeof(cnstr));
     CLIGetStrWithReturn(ctx, 1, cnstr, &cnlen);
 
@@ -329,7 +329,7 @@ static int CmdPacSim(const char *Cmd) {
     CLIExecWithReturn(ctx, Cmd, argtable, false);
 
     uint8_t cnstr[10];
-    int cnlen = 9;
+    int cnlen = sizeof(cnstr) - 1; // CLIGetStrWithReturn does not guarantee string to be null-terminated
     memset(cnstr, 0x00, sizeof(cnstr));
     CLIGetStrWithReturn(ctx, 1, cnstr, &cnlen);
 
@@ -380,10 +380,10 @@ static int CmdPacSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_NRZ_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
-
+    }
     return PM3_SUCCESS;
 }
 
@@ -391,7 +391,7 @@ static command_t CommandTable[] = {
     {"help",  CmdHelp,        AlwaysAvailable, "This help"},
     {"demod", CmdPacDemod,    AlwaysAvailable, "demodulate a PAC tag from the GraphBuffer"},
     {"reader",  CmdPacReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone", CmdPacClone,    IfPm3Lf,         "clone PAC tag to T55x7"},
+    {"clone", CmdPacClone,    IfPm3Lf,         "clone PAC tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",   CmdPacSim,      IfPm3Lf,         "simulate PAC tag"},
     {NULL, NULL, NULL, NULL}
 };

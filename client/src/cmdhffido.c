@@ -44,6 +44,7 @@
 #include "cmdtrace.h"
 #include "util.h"
 #include "fileutils.h"   // laodFileJSONroot
+#include "protocols.h"   // ISO7816 APDU return codes
 
 #define DEF_FIDO_SIZE        2048
 #define DEF_FIDO_PARAM_FILE  "hf_fido2_defparams.json"
@@ -77,33 +78,36 @@ static int CmdHFFidoInfo(const char *Cmd) {
     uint8_t buf[APDU_RES_LEN] = {0};
     size_t len = 0;
     uint16_t sw = 0;
-    int res = FIDOSelect(true, true, buf, sizeof(buf), &len, &sw);
 
+    int res = FIDOSelect(true, true, buf, sizeof(buf), &len, &sw);
     if (res) {
         DropField();
         return res;
     }
 
-    if (sw != 0x9000) {
-        if (sw)
-            PrintAndLogEx(INFO, "Not a FIDO card! APDU response: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
-        else
-            PrintAndLogEx(ERR, "APDU exchange error. Card returns 0x0000.");
-
+    if (sw != ISO7816_OK) {
+        if (sw) {
+            PrintAndLogEx(INFO, "Not a FIDO card. APDU response: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
+        } else {
+            PrintAndLogEx(ERR, "APDU exchange error. Card returns 0x0000");
+        }
         DropField();
         return PM3_SUCCESS;
     }
 
-    if (!strncmp((char *)buf, "U2F_V2", 7)) {
-        if (!strncmp((char *)buf, "FIDO_2_0", 8)) {
-            PrintAndLogEx(INFO, "FIDO2 authenticator detected. Version: %.*s", (int)len, buf);
+    if (strncmp((char *)buf, "U2F_V2", 7) == 0) {
+        if (strncmp((char *)buf, "FIDO_2_0", 8) == 0) {
+            PrintAndLogEx(INFO, "FIDO2 authenticator");
+            PrintAndLogEx(INFO, "Version... " _YELLOW_("%.*s"), (int)len, buf);
         } else {
-            PrintAndLogEx(INFO, "FIDO authenticator detected (not standard U2F).");
-            PrintAndLogEx(INFO, "Non U2F authenticator version:");
+            PrintAndLogEx(INFO, "FIDO authenticator (not standard U2F)");
+            PrintAndLogEx(INFO, "Non U2F authenticator");
+            PrintAndLogEx(INFO, "version... ");
             print_buffer((const unsigned char *)buf, len, 1);
         }
     } else {
-        PrintAndLogEx(INFO, "FIDO U2F authenticator detected. Version: %.*s", (int)len, buf);
+        PrintAndLogEx(INFO, "FIDO U2F authenticator detected");
+        PrintAndLogEx(INFO, "Version... " _YELLOW_("%.*s"), (int)len, buf);
     }
 
     res = FIDO2GetInfo(buf, sizeof(buf), &len, &sw);
@@ -111,7 +115,8 @@ static int CmdHFFidoInfo(const char *Cmd) {
     if (res) {
         return res;
     }
-    if (sw != 0x9000) {
+
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "FIDO2 version doesn't exist (%04x - %s).", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         return PM3_SUCCESS;
     }
@@ -136,6 +141,8 @@ static int CmdHFFidoRegister(const char *cmd) {
                   "Initiate a U2F token registration. Needs two 32-byte hash numbers.\n"
                   "challenge parameter (32b) and application parameter (32b).\n"
                   "The default config filename is  `fido2_defparams.json`\n"
+                  "note:\n"
+                  "   `-vv` shows  full certificates data\n"
                   "\n",
                   "hf fido reg                   -> execute command with 2 parameters, filled 0x00\n"
                   "hf fido reg --cp s0 --ap s1   -> execute command with plain parameters\n"
@@ -146,7 +153,7 @@ static int CmdHFFidoRegister(const char *cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_lit0("a",  "apdu", "Show APDU requests and responses"),
-        arg_litn("v",  "verbose",  0, 2, "Verbose mode. vv - show full certificates data"),
+        arg_litn("v",  "verbose",  0, 2, "Verbose output"),
         arg_lit0("t",  "tlv",  "Show DER certificate contents in TLV representation"),
         arg_str0("f",  "file", "<fn>",  "JSON input file name for parameters"),
         arg_str0(NULL, "cp",   "<str>", "Challenge parameter (1..16 chars)"),
@@ -262,7 +269,7 @@ static int CmdHFFidoRegister(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "Can't select FIDO application. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         DropField();
         json_decref(root);
@@ -277,7 +284,7 @@ static int CmdHFFidoRegister(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "ERROR execute register command. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         return PM3_ESOFT;
     }
@@ -372,11 +379,15 @@ static int CmdHFFidoRegister(const char *cmd) {
     PrintAndLogEx(INFO, "");
     PrintAndLogEx(INFO, "auth command: ");
     char command[500] = {0};
-    sprintf(command, "hf fido auth --kh %s", sprint_hex_inrow(&buf[67], keyHandleLen));
-    if (chlen)
-        sprintf(command + strlen(command), " --%s %s", cpplain ? "cp" : "cpx", cpplain ? (char *)cdata : sprint_hex_inrow(cdata, 32));
-    if (applen)
-        sprintf(command + strlen(command), " --%s %s", applain ? "cp" : "cpx", applain ? (char *)adata : sprint_hex_inrow(adata, 32));
+    snprintf(command, sizeof(command), "hf fido auth --kh %s", sprint_hex_inrow(&buf[67], keyHandleLen));
+    if (chlen) {
+        size_t command_len = strlen(command);
+        snprintf(command + command_len, sizeof(command) - command_len, " --%s %s", cpplain ? "cp" : "cpx", cpplain ? (char *)cdata : sprint_hex_inrow(cdata, 32));
+    }
+    if (applen) {
+        size_t command_len = strlen(command);
+        snprintf(command + command_len, sizeof(command) - command_len, " --%s %s", applain ? "cp" : "cpx", applain ? (char *)adata : sprint_hex_inrow(adata, 32));
+    }
     PrintAndLogEx(INFO, "%s", command);
 
     if (root) {
@@ -404,13 +415,13 @@ static int CmdHFFidoAuthenticate(const char *cmd) {
                   "hf fido auth --kh 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f -> execute command with 2 parameters, filled 0x00 and key handle\n"
                   "hf fido auth \n"
                   "--kh 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f\n"
-                  "--cp 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f \n"
-                  "--ap 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f -> execute command with parameters");
+                  "--cpx 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f \n"
+                  "--apx 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f -> execute command with parameters");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("a",  "apdu",      "Show APDU reqests and responses"),
-        arg_lit0("v",  "verbose",   "Verbose mode"),
+        arg_lit0("a",  "apdu",      "Show APDU requests and responses"),
+        arg_lit0("v",  "verbose",   "Verbose output"),
         arg_rem("default mode:",    "dont-enforce-user-presence-and-sign"),
         arg_lit0("u",  "user",      "mode: enforce-user-presence-and-sign"),
         arg_lit0("c",  "check",     "mode: check-only"),
@@ -436,7 +447,7 @@ static int CmdHFFidoAuthenticate(const char *cmd) {
         controlByte = 0x07;
 
     uint8_t data[512] = {0};
-    uint8_t hdata[250] = {0};
+    uint8_t hdata[256] = {0};
     bool public_key_loaded = false;
     uint8_t public_key[65] = {0};
     int hdatalen = 0;
@@ -580,7 +591,7 @@ static int CmdHFFidoAuthenticate(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "Can't select FIDO application. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         DropField();
         json_decref(root);
@@ -595,7 +606,7 @@ static int CmdHFFidoAuthenticate(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "ERROR execute authentication command. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         json_decref(root);
         return PM3_ESOFT;
@@ -635,7 +646,7 @@ static int CmdHFFidoAuthenticate(const char *cmd) {
                     PrintAndLogEx(WARNING, "Other signature check error: %x %s", (res < 0) ? -res : res, ecdsa_get_error(res));
                 }
             } else {
-                PrintAndLogEx(SUCCESS, "Signature is (" _GREEN_("ok") " )");
+                PrintAndLogEx(SUCCESS, "Signature is ( " _GREEN_("ok") " )");
             }
         } else {
             PrintAndLogEx(WARNING, "No public key provided. can't check signature.");
@@ -663,16 +674,17 @@ static int CmdHFFido2MakeCredential(const char *cmd) {
     CLIParserInit(&ctx, "hf fido make",
                   "Execute a FIDO2 Make Credential command. Needs json file with parameters.\n"
                   "Sample file `fido2_defparams.json` in `client/resources/`.\n"
-                  "- for yubikey there must be only one option `\"rk\": true` or false"
-                  ,
+                  "- for yubikey there must be only one option `\"rk\": true` or false\n"
+                  "note:\n"
+                  "   `-vv` shows  full certificates data\n",
                   "hf fido make               --> use default parameters file `fido2_defparams.json`\n"
                   "hf fido make -f test.json  --> use parameters file `text.json`"
                  );
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("a", "apdu", "Show APDU reqests and responses"),
-        arg_litn("v", "verbose", 0, 2, "Verbose mode. vv - show full certificates data"),
+        arg_lit0("a", "apdu", "Show APDU requests and responses"),
+        arg_litn("v", "verbose", 0, 2, "Verbose output"),
         arg_lit0("t", "tlv",  "Show DER certificate contents in TLV representation"),
         arg_lit0("c", "cbor", "Show CBOR decoded data"),
         arg_str0("f", "file", "<fn>", "Parameter JSON file name"),
@@ -720,7 +732,7 @@ static int CmdHFFido2MakeCredential(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "Can't select FIDO application. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         DropField();
         json_decref(root);
@@ -748,7 +760,7 @@ static int CmdHFFido2MakeCredential(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "ERROR execute make credential command. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         json_decref(root);
         return PM3_EFILE;
@@ -783,15 +795,16 @@ static int CmdHFFido2GetAssertion(const char *cmd) {
                   "Execute a FIDO2 Get Assertion command. Needs json file with parameters.\n"
                   "Sample file `fido2_defparams.json` in `client/resources/`.\n"
                   "- Needs if `rk` option is `false` (authenticator doesn't store credential to its memory)\n"
-                  "- for yubikey there must be only one option `\"up\": true` or false"
-                  ,
+                  "- for yubikey there must be only one option `\"up\": true` or false\n"
+                  "note:\n"
+                  "   `-vv` shows  full certificates data\n",
                   "hf fido assert                  --> default parameters file `fido2_defparams.json`\n"
                   "hf fido assert -f test.json -l  --> use parameters file `text.json` and add to request CredentialId");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("a", "apdu", "Show APDU reqests and responses"),
-        arg_litn("v", "verbose", 0, 2, "Verbose mode. vv - show full certificates data"),
+        arg_lit0("a", "apdu", "Show APDU requests and responses"),
+        arg_litn("v", "verbose", 0, 2, "Verbose output"),
         arg_lit0("c", "cbor", "Show CBOR decoded data"),
         arg_lit0("l", "list", "Add CredentialId from json to allowList"),
         arg_str0("f", "file", "<fn>", "Parameter JSON file name"),
@@ -839,7 +852,7 @@ static int CmdHFFido2GetAssertion(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "Can't select FIDO application. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         DropField();
         json_decref(root);
@@ -867,7 +880,7 @@ static int CmdHFFido2GetAssertion(const char *cmd) {
         return res;
     }
 
-    if (sw != 0x9000) {
+    if (sw != ISO7816_OK) {
         PrintAndLogEx(ERR, "ERROR execute get assertion command. APDU response status: %04x - %s", sw, GetAPDUCodeDescription(sw >> 8, sw & 0xff));
         json_decref(root);
         return PM3_ESOFT;

@@ -41,17 +41,26 @@
 #define BYTEx(x, n) (((x) >> (n * 8)) & 0xff )
 #endif
 
-// Proxmark3 RDV4.0 LEDs
+// Proxmark3 RDV4.0 and Proxmark Easy LEDs
 #define LED_A 1
 #define LED_B 2
 #define LED_C 4
 #define LED_D 8
 
+
+#ifndef LED_ORDER_PM3EASY
 // Proxmark3 historical LEDs
 #define LED_ORANGE LED_A
 #define LED_GREEN  LED_B
 #define LED_RED    LED_C
 #define LED_RED2   LED_D
+#else
+// Proxmark3 Easy LEDs
+#define LED_GREEN  LED_A
+#define LED_RED    LED_B
+#define LED_ORANGE LED_C
+#define LED_RED2   LED_D
+#endif
 
 #define BUTTON_HOLD 1
 #define BUTTON_NO_CLICK 0
@@ -59,21 +68,6 @@
 #define BUTTON_DOUBLE_CLICK -2
 #define BUTTON_ERROR -99
 
-#ifndef REV8
-#define REV8(x) ((((x)>>7)&1)+((((x)>>6)&1)<<1)+((((x)>>5)&1)<<2)+((((x)>>4)&1)<<3)+((((x)>>3)&1)<<4)+((((x)>>2)&1)<<5)+((((x)>>1)&1)<<6)+(((x)&1)<<7))
-#endif
-
-#ifndef REV16
-#define REV16(x)        (REV8(x) + (REV8 ((x) >> 8) << 8))
-#endif
-
-#ifndef REV32
-#define REV32(x)        (REV16(x) + (REV16((x) >> 16) << 16))
-#endif
-
-#ifndef REV64
-#define REV64(x)        (REV32(x) + ((uint64_t)(REV32((x) >> 32) << 32)))
-#endif
 
 #ifndef BIT32
 #define BIT32(x,n)      ((((x)[(n)>>5])>>((n)))&1)
@@ -88,8 +82,13 @@
 #endif
 
 size_t nbytes(size_t nbits);
+uint8_t hex2int(char x);
 
-uint8_t hex2int(char hexchar);
+int hex2binarray(char *target, const char *source);
+int hex2binarray_n(char *target, const char *source, int sourcelen);
+int binarray2hex(const uint8_t *bs, int bs_len, uint8_t *hex);
+
+void convertToHexArray(uint8_t num, uint8_t *partialkey);
 
 void LED(int led, int ms);
 void LEDsoff(void);
@@ -101,5 +100,9 @@ void SpinUp(uint32_t speed);
 int BUTTON_CLICKED(int ms);
 int BUTTON_HELD(int ms);
 bool data_available(void);
+bool data_available_fast(void);
+
+uint32_t flash_size_from_cidr(uint32_t cidr);
+uint32_t get_flash_size(void);
 
 #endif

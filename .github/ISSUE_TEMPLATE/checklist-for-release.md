@@ -9,7 +9,6 @@ assignees: doegox, iceman1001
 
 # Checklist
 
-- [ ] CHANGELOG.md: add title: `## [releasename][YYYY-MM-DD]`
 - [ ] `make style`
 - [ ] `make miscchecks`
 - [ ] `make clean; make client CC=clang CXX=clang++ LD=clang++` on recent Debian or Ubuntu
@@ -18,38 +17,23 @@ assignees: doegox, iceman1001
 - [ ] `tools/build_all_firmwares.sh` check that the script contains all standalone modes then compile all standalone modes (linux only)
 - [ ] `experimental_lib` compilation & tests
 - [ ] `experimental_client_with_swig` compilation & tests
-- [ ] Check Android `CMakeLists.txt` list of source file
 - [ ] GitHub Actions - green across the board ( MacOS, Ubuntu, Windows)
 
 # OS compilation and tests
 
-```bash
-#!/usr/bin/env bash
-
-make clean && make -j PLATFORM=PM3GENERIC PLATFORM_EXTRAS= && tools/pm3_tests.sh --long || exit 1
-make clean && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS= || exit 1
-make clean && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON || exit 1
-make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && sudo make install PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON && ( cd /tmp; proxmark3 -c 'data load -f lf_EM4x05.pm3;lf search -1'|grep 'Valid FDX-B ID found' ) && sudo make uninstall || exit 1
-
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3GENERIC PLATFORM_EXTRAS= && cp -a ../*scripts ../*libs . && ../../tools/pm3_tests.sh --clientbin $(pwd)/proxmark3 client ) || exit 1
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS= ) || exit 1
-( cd client; rm -rf build; mkdir build;cd build;cmake .. && make -j PLATFORM=PM3RDV4 PLATFORM_EXTRAS=BTADDON ) || exit 1
-
-# Hitag2crack, optionally with --long and --opencl ...
-make hitag2crack/clean && make hitag2crack && tools/pm3_tests.sh hitag2crack || exit 1
-```
+Run `tools/release_tests.sh` on:
 
 - [ ] RPI Zero
 - [ ] Jetson Nano
 - [ ] WSL
-- [ ] PSv3.10
+- [ ] PSv3.xx
 - [ ] Archlinux
 - [ ] Kali
 - [ ] Debian Stable
 - [ ] Debian Testing
-- [ ] Ubuntu21
+- [ ] Ubuntu 22
 - [ ] ParrotOS
-- [ ] Fedora
+- [ ] Fedora 37
 - [ ] OpenSuse Leap
 - [ ] OpenSuse Tumbleweed
 - [ ] OSX (MacPorts)
@@ -59,14 +43,24 @@ make hitag2crack/clean && make hitag2crack && tools/pm3_tests.sh hitag2crack || 
 
 # creating release
 
-- [ ] `make release RELEASE_NAME="ice awesome"`
-  - last line of output,  gives you next command to run.
+- [ ] CHANGELOG.md: add title: `## [myreleasename][YYYY-MM-DD]`
+- [ ] `make release RELEASE_NAME="myreleasename"`
+  - last line of output gives you next command to run.
   - Sample:  `git push && git push origin v4.12345`
-- [ ] CHANGELOG.md: edit title to add version info: `## [releasename.4.12345][YYYY-MM-DD]`
+- [ ] CHANGELOG.md: edit title to add version info: `## [myreleasename.4.12345][YYYY-MM-DD]`
 
 ## Step Github releases
 
 - [ ] Go to Github releases,  create release based on the new created tag and publish
+  - Choose a tag: v4.12345
+  - Target: master
+  - Set as the latest release
+  - Title: `proxmark3-v4.12345`
+  - Description:
+```
+Release v4.12345
+Nickname "myreleasename"
+```
 
 ## Step Homebrew updates
 

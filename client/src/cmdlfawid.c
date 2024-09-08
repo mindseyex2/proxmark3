@@ -41,15 +41,17 @@ static int sendPing(void) {
     SendCommandNG(CMD_PING, NULL, 0);
     clearCommandBuffer();
     PacketResponseNG resp;
-    if (!WaitForResponseTimeout(CMD_PING, &resp, 1000))
+    if (WaitForResponseTimeout(CMD_PING, &resp, 1000) == false) {
         return PM3_ETIMEOUT;
+    }
     return PM3_SUCCESS;
 }
 
 static int sendTry(uint8_t fmtlen, uint32_t fc, uint32_t cn, uint32_t delay, uint8_t *bits, size_t bs_len, bool verbose) {
 
-    if (verbose)
+    if (verbose) {
         PrintAndLogEx(INFO, "Trying FC: " _YELLOW_("%u") " CN: " _YELLOW_("%u"), fc, cn);
+    }
 
     if (getAWIDBits(fmtlen, fc, cn, bits) != PM3_SUCCESS) {
         PrintAndLogEx(ERR, "Error with tag bitstream generation.");
@@ -132,7 +134,7 @@ static int CmdAWIDWatch(const char *Cmd) {
     CLIParserFree(ctx);
 
     PrintAndLogEx(SUCCESS, "Watching for AWID cards - place tag on antenna");
-    PrintAndLogEx(INFO, "Press pm3-button to stop reading cards");
+    PrintAndLogEx(INFO, "Press " _GREEN_("pm3 button") " to stop reading cards");
     clearCommandBuffer();
     SendCommandNG(CMD_LF_AWID_WATCH, NULL, 0);
     return lfsim_wait_check(CMD_LF_AWID_WATCH);
@@ -149,7 +151,7 @@ int demodAWID(bool verbose) {
         return PM3_EMALLOC;
     }
 
-    size_t size = getFromGraphBuf(bits);
+    size_t size = getFromGraphBuffer(bits);
     if (size == 0) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - AWID not enough samples");
         free(bits);
@@ -205,6 +207,11 @@ int demodAWID(bool verbose) {
         free(bits);
         return PM3_ESOFT;
     }
+
+    char binstr[68] = {0};
+    binarray_2_binstr(binstr, (char *)bits, size);
+    PrintAndLogEx(DEBUG, "no parity... %s", binstr);
+
     // ok valid card found!
 
     // Index map
@@ -230,35 +237,47 @@ int demodAWID(bool verbose) {
     uint8_t fmtLen = bytebits_to_byte(bits, 8);
 
     switch (fmtLen) {
-        case 26:
+        case 26: {
             fc = bytebits_to_byte(bits + 9, 8);
             cardnum = bytebits_to_byte(bits + 17, 16);
             code1 = bytebits_to_byte(bits + 8, fmtLen);
             PrintAndLogEx(SUCCESS, "AWID - len: " _GREEN_("%d") " FC: " _GREEN_("%d") " Card: " _GREEN_("%u") " - Wiegand: " _GREEN_("%x") ", Raw: %08x%08x%08x", fmtLen, fc, cardnum, code1, rawHi2, rawHi, rawLo);
             break;
-        case 34:
+        }
+        case 34: {
             fc = bytebits_to_byte(bits + 9, 8);
             cardnum = bytebits_to_byte(bits + 17, 24);
             code1 = bytebits_to_byte(bits + 8, (fmtLen - 32));
             code2 = bytebits_to_byte(bits + 8 + (fmtLen - 32), 32);
             PrintAndLogEx(SUCCESS, "AWID - len: " _GREEN_("%d") " FC: " _GREEN_("%d") " Card: " _GREEN_("%u") " - Wiegand: " _GREEN_("%x%08x") ", Raw: %08x%08x%08x", fmtLen, fc, cardnum, code1, code2, rawHi2, rawHi, rawLo);
             break;
-        case 37:
+        }
+        case 36: {
+            fc = bytebits_to_byte(bits + 14, 11);
+            cardnum = bytebits_to_byte(bits + 25, 18);
+            code1 = bytebits_to_byte(bits + 8, (fmtLen - 32));
+            code2 = bytebits_to_byte(bits + 8 + (fmtLen - 32), 32);
+            PrintAndLogEx(SUCCESS, "AWID - len: " _GREEN_("%d") " FC: " _GREEN_("%d") " Card: " _GREEN_("%u") " - Wiegand: " _GREEN_("%x%08x") ", Raw: %08x%08x%08x", fmtLen, fc, cardnum, code1, code2, rawHi2, rawHi, rawLo);
+            break;
+        }
+        case 37: {
             fc = bytebits_to_byte(bits + 9, 13);
             cardnum = bytebits_to_byte(bits + 22, 18);
             code1 = bytebits_to_byte(bits + 8, (fmtLen - 32));
             code2 = bytebits_to_byte(bits + 8 + (fmtLen - 32), 32);
             PrintAndLogEx(SUCCESS, "AWID - len: " _GREEN_("%d")" FC: " _GREEN_("%d")" Card: " _GREEN_("%u") " - Wiegand: " _GREEN_("%x%08x") ", Raw: %08x%08x%08x", fmtLen, fc, cardnum, code1, code2, rawHi2, rawHi, rawLo);
             break;
+        }
         // case 40:
         // break;
-        case 50:
+        case 50: {
             fc = bytebits_to_byte(bits + 9, 16);
             cardnum = bytebits_to_byte(bits + 25, 32);
             code1 = bytebits_to_byte(bits + 8, (fmtLen - 32));
             code2 = bytebits_to_byte(bits + 8 + (fmtLen - 32), 32);
             PrintAndLogEx(SUCCESS, "AWID - len: " _GREEN_("%d") " FC: " _GREEN_("%d") " Card: " _GREEN_("%u") " - Wiegand: " _GREEN_("%x%08x") ", Raw: %08x%08x%08x", fmtLen, fc, cardnum, code1, code2, rawHi2, rawHi, rawLo);
             break;
+        }
         default:
             if (fmtLen > 32) {
                 cardnum = bytebits_to_byte(bits + 8 + (fmtLen - 17), 16);
@@ -274,7 +293,8 @@ int demodAWID(bool verbose) {
     }
     free(bits);
 
-    PrintAndLogEx(DEBUG, "DEBUG: AWID idx: %d, Len: %zu Printing DemodBuffer:", idx, size);
+    PrintAndLogEx(DEBUG, "DEBUG: AWID idx: %d, Len: %zu", idx, size);
+    PrintAndLogEx(DEBUG, "DEBUG: Printing DemodBuffer:");
     if (g_debugMode) {
         printDemodBuff(0, false, false, true);
         printDemodBuff(0, false, false, false);
@@ -287,7 +307,9 @@ static int CmdAWIDDemod(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf awid demod",
                   "Try to find AWID Prox preamble, if found decode / descramble data",
-                  "lf awid demod"
+                  "lf awid demod\n"
+                  "lf awid demod --raw "
+
                  );
 
     void *argtable[] = {
@@ -333,10 +355,10 @@ static int CmdAWIDClone(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "lf awid clone",
                   "clone a AWID Prox tag to a T55x7, Q5/T5555 or EM4305/4469 tag",
-                  "lf awid clone --fmt 26 --fc 123 --cn 1337\n"
-                  "lf awid clone --fmt 50 --fc 2001 --cn 13371337\n"
-                  "lf awid clone --q5 --fmt 26 --fc 123 --cn 1337   -> encode for Q5/T5555 tag\n"
-                  "lf awid clone --em --fmt 26 --fc 123 --cn 1337   -> encode for EM4305/4469"
+                  "lf awid clone --fmt 26 --fc 123 --cn 1337       -> encode for T55x7 tag\n"
+                  "lf awid clone --fmt 50 --fc 2001 --cn 13371337  -> encode long fmt for T55x7 tag\n"
+                  "lf awid clone --fmt 26 --fc 123 --cn 1337 --q5  -> encode for Q5/T5555 tag\n"
+                  "lf awid clone --fmt 26 --fc 123 --cn 1337 --em  -> encode for EM4305/4469"
                  );
 
     void *argtable[] = {
@@ -373,6 +395,7 @@ static int CmdAWIDClone(const char *Cmd) {
 
     // EM4305
     if (em) {
+        PrintAndLogEx(WARNING, "Beware some EM4305 tags don't support FSK and datarate = RF/50, check your tag copy!");
         blocks[0] = EM4305_AWID_CONFIG_BLOCK;
         snprintf(cardtype, sizeof(cardtype), "EM4305/4469");
     }
@@ -390,6 +413,14 @@ static int CmdAWIDClone(const char *Cmd) {
     blocks[1] = bytebits_to_byte(bits, 32);
     blocks[2] = bytebits_to_byte(bits + 32, 32);
     blocks[3] = bytebits_to_byte(bits + 64, 32);
+
+    // EM4305
+    if (em) {
+        // invert FSK data
+        for (uint8_t i = 1; i < ARRAYLEN(blocks) ; i++) {
+            blocks[i] = blocks[i] ^ 0xFFFFFFFF;
+        }
+    }
 
     free(bits);
 
@@ -478,7 +509,7 @@ static int CmdAWIDBrute(const char *Cmd) {
         arg_u64_1(NULL, "fc", "<dec>", "8|16bit value facility code"),
         arg_u64_0(NULL, "cn", "<dec>", "optional -  card number to start with, max 65535"),
         arg_u64_0(NULL, "delay", "<dec>", "optional - delay betweens attempts in ms. Default 1000ms"),
-        arg_lit0("v", "verbose", "verbose logging, show all tries"),
+        arg_lit0("v", "verbose", "verbose output"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
@@ -514,7 +545,7 @@ static int CmdAWIDBrute(const char *Cmd) {
     }
 
     PrintAndLogEx(SUCCESS, "Bruteforceing AWID %d reader", fmtlen);
-    PrintAndLogEx(SUCCESS, "Press pm3-button to abort simulation or press Enter");
+    PrintAndLogEx(SUCCESS, "Press " _GREEN_("pm3 button") " or " _GREEN_("<Enter>") " to abort simulation");
 
     uint16_t up = cn;
     uint16_t down = cn;
@@ -556,9 +587,10 @@ static int CmdAWIDBrute(const char *Cmd) {
 
 static command_t CommandTable[] = {
     {"help",    CmdHelp,        AlwaysAvailable, "this help"},
+    {"brute",   CmdAWIDBrute,   IfPm3Lf,         "bruteforce card number against reader"},
+    {"clone",   CmdAWIDClone,   IfPm3Lf,         "clone AWID tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"demod",   CmdAWIDDemod,   AlwaysAvailable, "demodulate an AWID FSK tag from the GraphBuffer"},
     {"reader",  CmdAWIDReader,  IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",   CmdAWIDClone,   IfPm3Lf,         "clone AWID tag to T55x7 or Q5/T5555"},
     {"sim",     CmdAWIDSim,     IfPm3Lf,         "simulate AWID tag"},
     {"brute",   CmdAWIDBrute,   IfPm3Lf,         "bruteforce card number against reader"},
     {"watch",   CmdAWIDWatch,   IfPm3Lf,         "continuously watch for cards.  Reader mode"},

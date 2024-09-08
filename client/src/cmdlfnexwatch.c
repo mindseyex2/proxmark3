@@ -558,10 +558,10 @@ static int CmdNexWatchSim(const char *Cmd) {
     PacketResponseNG resp;
     WaitForResponse(CMD_LF_PSK_SIMULATE, &resp);
 
-    PrintAndLogEx(INFO, "Done");
-    if (resp.status != PM3_EOPABORTED)
+    PrintAndLogEx(INFO, "Done!");
+    if (resp.status != PM3_EOPABORTED) {
         return resp.status;
-
+    }
     return PM3_SUCCESS;
 }
 
@@ -569,7 +569,7 @@ static command_t CommandTable[] = {
     {"help",   CmdHelp,           AlwaysAvailable, "This help"},
     {"demod",  CmdNexWatchDemod,  AlwaysAvailable, "demodulate a NexWatch tag (nexkey, quadrakey) from the GraphBuffer"},
     {"reader", CmdNexWatchReader, IfPm3Lf,         "attempt to read and extract tag data"},
-    {"clone",  CmdNexWatchClone,  IfPm3Lf,         "clone NexWatch tag to T55x7"},
+    {"clone",  CmdNexWatchClone,  IfPm3Lf,         "clone NexWatch tag to T55x7, Q5/T5555 or EM4305/4469"},
     {"sim",    CmdNexWatchSim,    IfPm3Lf,         "simulate NexWatch tag"},
     {NULL, NULL, NULL, NULL}
 };

@@ -145,7 +145,7 @@ int CmdWiegandDecode(const char *Cmd) {
     if (hlen) {
         res = hexstring_to_u96(&top, &mid, &bot, hex);
         if (res != hlen) {
-            PrintAndLogEx(ERR, "hex string contains none hex chars");
+            PrintAndLogEx(ERR, "Hex string contains none hex chars");
             return PM3_EINVARG;
         }
     } else if (blen) {
@@ -154,10 +154,12 @@ int CmdWiegandDecode(const char *Cmd) {
             PrintAndLogEx(ERR, "Binary string contains none <0|1> chars");
             return PM3_EINVARG;
         }
+        PrintAndLogEx(INFO, "Input bin len... %d", blen);
     } else {
-        PrintAndLogEx(ERR, "empty input");
+        PrintAndLogEx(ERR, "Empty input");
         return PM3_EINVARG;
     }
+
     wiegand_message_t packed = initialize_message_object(top, mid, bot, blen);
     HIDTryUnpack(&packed);
     return PM3_SUCCESS;

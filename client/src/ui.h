@@ -35,7 +35,9 @@ typedef enum logLevel {NORMAL, SUCCESS, INFO, FAILED, WARNING, ERR, DEBUG, INPLA
 typedef enum emojiMode {EMO_ALIAS, EMO_EMOJI, EMO_ALTTEXT, EMO_NONE} emojiMode_t;
 typedef enum clientdebugLevel {cdbOFF, cdbSIMPLE, cdbFULL} clientdebugLevel_t;
 // typedef enum devicedebugLevel {ddbOFF, ddbERROR, ddbINFO, ddbDEBUG, ddbEXTENDED} devicedebugLevel_t;
-typedef enum savePaths {spDefault, spDump, spTrace, spItemCount} savePaths_t; // last item spItemCount used to auto map to number of files
+
+// last item spItemCount used to auto map to number of files
+typedef enum savePaths {spDefault, spDump, spTrace, spItemCount} savePaths_t;
 typedef struct {int x; int y; int h; int w;} qtWindow_t;
 
 typedef struct {
@@ -47,6 +49,7 @@ typedef struct {
     bool pm3_present;
     bool help_dump_mode;
     bool show_hints;
+    bool dense_output;
     bool window_changed; // track if plot/overlay pos/size changed to save on exit
     qtWindow_t plot;
     qtWindow_t overlay;
@@ -59,9 +62,11 @@ typedef struct {
     uint16_t client_exe_delay;
     char *history_path;
     pm3_device_t *current_device;
+    uint32_t timeout;
 } session_arg_t;
 
 extern session_arg_t g_session;
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327
 #endif
@@ -75,12 +80,13 @@ bool GetFlushAfterWrite(void);
 void memcpy_filter_ansi(void *dest, const void *src, size_t n, bool filter);
 void memcpy_filter_rlmarkers(void *dest, const void *src, size_t n);
 void memcpy_filter_emoji(void *dest, const void *src, size_t n, emojiMode_t mode);
+void free_grabber(void);
 
 int searchHomeFilePath(char **foundpath, const char *subdir, const char *filename, bool create_home);
 
 extern pthread_mutex_t g_print_lock;
 
-void print_progress(size_t count, uint64_t max, barMode_t style);
+void print_progress(uint64_t count, uint64_t max, barMode_t style);
 
 void iceIIR_Butterworth(int *data, const size_t len);
 void iceSimple_Filter(int *data, const size_t len, uint8_t k);

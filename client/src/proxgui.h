@@ -32,7 +32,7 @@ void HideGraphWindow(void);
 void RepaintGraphWindow(void);
 
 // hook up picture viewer
-void ShowPictureWindow(char *fn);
+void ShowPictureWindow(uint8_t *data, int len);
 void ShowBase64PictureWindow(char *b64);
 void HidePictureWindow(void);
 void RepaintPictureWindow(void);
@@ -43,14 +43,11 @@ void ExitGraphics(void);
 
 extern double g_CursorScaleFactor;
 extern char g_CursorScaleFactorUnit[11];
-extern double g_PlotGridX, g_PlotGridY, g_PlotGridXdefault, g_PlotGridYdefault, g_GridOffset;
-extern uint32_t g_CursorCPos, g_CursorDPos, g_GraphStart, g_GraphStop;
+extern double g_PlotGridX, g_PlotGridY, g_DefaultGridX, g_DefaultGridY;
+extern uint32_t g_GraphStart, g_GraphStart_old, g_GraphStop;
 extern int CommandFinished;
 extern int offline;
 extern bool g_GridLocked;
-
-#define GRAPH_SAVE 1
-#define GRAPH_RESTORE 0
 
 #ifndef FILE_PATH_SIZE
 #define FILE_PATH_SIZE 1000

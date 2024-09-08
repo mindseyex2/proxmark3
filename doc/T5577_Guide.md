@@ -22,6 +22,8 @@
 | [The configuration Block – Block 0 Page 0](#the-configuration-block-block-0-page-0) |
 | [Exercise 2](#exercise-2)                                                           |
 | [The configuration Block – Block 3 Page 1](#the-configuration-block-block-3-page-1) |
+| [Sniffing commands](#sniffing-commands) |
+| [T5577 and Keysy](#t5577-and-keysy) |
 
 # Part 1
 ^[Top](#top)
@@ -66,6 +68,9 @@ the chip how to behave.
 
 ![](./t55xx_mem_map.png)
 
+ #### What is "Traceability Data"?
+
+ Traceability data is manufacturer-programmed (and locked) data that contains information related to the manufacture of the chip - presumably so that issues can be "traced back" to the point and date of manufacture.  It contains data such as the year and quarter of manufacture, the wafer number on which the chip was produced, and the die number on the wafer.   The traceabiltiy data occupies blocks 1 and 2 of Page 1, and is normally NOT writeable, although some T5577 clones will allow you to overwrite these blocks.   You can read the traceability data with the `lf t55xx trace` command.
  
 
 ## What data is on my T5577
@@ -137,7 +142,7 @@ developers have done a great job and gave us commands. What we need to
 know is that with the T5577, data is read/written one complete block at a
 time. Each block holds 32 bits of data (hence the binary output shown)  
   
-Since we know that the card has data and configuration blocks, lets say
+Since we know that the card has data and configuration blocks, lets stay
 away from those while we learn how to read and write. I suggest you
 follow along and perform each command and check the results as we go.
 
@@ -388,8 +393,8 @@ required, please do not proceed.
     
     | Hex Data | Binary Data                            |
     |:--------:|:---------------------------------------|
-    | 00088040 | 000000000000100010000000111***0***0000 |
-    | 00088050 | 000000000000100010000000111***1***0000 |
+    | 000880E0 | 000000000000100010000000111***0***0000 |
+    | 000880F0 | 000000000000100010000000111***1***0000 |
     
     See how in the above we changed the bit in location 28 from a 0 to 1  
     0 = No Password, 1 = Use Password
@@ -459,7 +464,9 @@ required, please do not proceed.
     
     ***Reading a T5577 block with a password when a password is not
     enabled can result in locking the card. Please only use read with a
-    password when it is known that a password is in use.***
+    password when it is known that a password is in use.
+    
+    At least don't use block 0 for this and password with `1` in the most significant bit***
     
     The proxmark3 has a safety check\!
     ```
@@ -526,7 +533,7 @@ required, please do not proceed.
     [=]  Downlink mode..... default/fixed bit length 
     [=]  Password set...... No                       
     ```
-    Yes we can!  We can see Block 0 is the correct config 00088040
+    Yes we can!  We can see Block 0 is the correct config 000880E0
 
 # Part 2 – Configuration Blocks
 ^[Top](#top)
@@ -603,37 +610,37 @@ password set (if not, review and get you card back to this state).
     [+] Done
     ```
     
-2)  Check this has work.
+2)  Check this has worked.
     ```
     [usb] pm3 --> lf search
     ```
     result:
     ```                                                             
-    [=] NOTE: some demods output possible binary                         
-    [=] if it finds something that looks like a tag                      
-    [=] False Positives ARE possible                                     
-    [=]                                                                  
-    [=] Checking for known tags...                                       
-    [=]                                                                  
-    [+] EM 410x ID 0F0368568B                                            
-    [+] EM410x ( RF/64 )                                                 
-    [=] -------- Possible de-scramble patterns ---------                 
-    [+] Unique TAG ID      : F0C0166AD1                                  
-    [=] HoneyWell IdentKey                                               
-    [+]     DEZ 8          : 06837899                                    
-    [+]     DEZ 10         : 0057169547                                  
-    [+]     DEZ 5.5        : 00872.22155                                 
-    [+]     DEZ 3.5A       : 015.22155                                   
-    [+]     DEZ 3.5B       : 003.22155                                   
-    [+]     DEZ 3.5C       : 104.22155                                   
-    [+]     DEZ 14/IK2     : 00064481678987                              
-    [+]     DEZ 15/IK3     : 001034014845649                             
-    [+]     DEZ 20/ZK      : 15001200010606101301                        
-    [=]                                                                  
-    [+] Other              : 22155_104_06837899                          
-    [+] Pattern Paxton     : 259822731 [0xF7C948B]                       
-    [+] Pattern 1          : 9750181 [0x94C6A5]                          
-    [+] Pattern Sebury     : 22155 104 6837899  [0x568B 0x68 0x68568B]   
+    [=] Note: False Positives ARE possible
+    [=] 
+    [=] Checking for known tags...
+    [=] 
+    [!] ⚠️  Specify one authentication mode
+    [+] EM 410x ID 1122334455
+    [+] EM410x ( RF/64 )
+    [=] -------- Possible de-scramble patterns ---------
+    [+] Unique TAG ID      : 8844CC22AA
+    [=] HoneyWell IdentKey
+    [+]     DEZ 8          : 03359829
+    [+]     DEZ 10         : 0573785173
+    [+]     DEZ 5.5        : 08755.17493
+    [+]     DEZ 3.5A       : 017.17493
+    [+]     DEZ 3.5B       : 034.17493
+    [+]     DEZ 3.5C       : 051.17493
+    [+]     DEZ 14/IK2     : 00073588229205
+    [+]     DEZ 15/IK3     : 000585269781162
+    [+]     DEZ 20/ZK      : 08080404121202021010
+    [=] 
+    [+] Other              : 17493_051_03359829
+    [+] Pattern Paxton     : 289899093 [0x11478255]
+    [+] Pattern 1          : 5931804 [0x5A831C]
+    [+] Pattern Sebury     : 17493 51 3359829  [0x4455 0x33 0x334455]
+    [+] VD / ID            : 017 / 0573785173
     [=] ------------------------------------------------                 
                                                                      
     [+] Valid EM410x ID found!                                           
@@ -713,3 +720,31 @@ it, we can follow the password section and update the config from
 ^[Top](#top)
 
 _to be written_
+
+
+## Sniffing commands
+^[Top](#top)
+
+Some readers work with cards via T55xx commands (read/write/etc) and think that they are safe)
+The password in this case is sent in clear text.
+So) There is a sniff command to get this command from the buffer or the field:
+
+    [usb] pm3 --> lf t55xx sniff
+
+    result:
+                               
+    [=] T55xx command detection
+    [+] Downlink mode           |  password  |   Data   | blk | page |  0  |  1  | raw
+    [+] ------------------------+------------+----------+-----+------+-----+-+---------------------------------------------
+    [+] Default write/pwd read  | [FFxxxxxx] | FFxxxxxx |  6  |   0  |  16 |  45 | 1011111111101xxxxxxxxxxxxxxxx100000110
+    [+] Default write/pwd read  | [FFxxxxxx] | FFxxxxxx |  6  |   0  |  17 |  46 | 1011111111101xxxxxxxxxxxxxxxx100000110
+    [+] -------------------------------------------------------------------------------------------------------------------
+
+
+
+## T5577 and Keysy
+^[Top](#top)
+
+The Keysy tag cloning tool (https://tinylabs.io/keysy/) uses T5577 tags that have a special "password" value (NOT the password described above) written in Block 6 that is tied to the traceability data.  The Keysy checks and computes the proper value for Block 6 and will not write to a tag that does not contain the proper value.   This DRM technology relies on the face that genuine T5577 chips cannot have their traceability data (Blocks 1 and 2 of Page 1) re-written and that the method to computer the proper value for Block 6 is proprietary, therefore compelling you to buy their branded tags.
+
+As noted earlier, certain T5577 clones DO allow you to overwrite the traceability data, thereby allowing a dump of a new Keysy tag to completely overwrite the entire memory and tricking the Keysy into using that tag.   This also implies that you should NEVER overwrite Block 6 on a Keysy tag, as doing so will prevent the use of the Keysy to program that tag in the future without restoring that value.

@@ -39,14 +39,14 @@
 
 typedef struct {
     uint8_t *buffer;
-    uint8_t numbits;
-    uint8_t position;
+    uint32_t numbits;
+    uint32_t position;
 } BitstreamIn_t;
 
 typedef struct {
     uint8_t *buffer;
-    uint8_t numbits;
-    uint8_t position;
+    uint32_t numbits;
+    uint32_t position;
 } BitstreamOut_t;
 
 bool headBit(BitstreamIn_t *stream);
@@ -57,7 +57,4 @@ int bitsLeft(BitstreamIn_t *stream);
 void push6bits(BitstreamOut_t *stream, uint8_t bits);
 void x_num_to_bytes(uint64_t n, size_t len, uint8_t *dest);
 uint64_t x_bytes_to_num(uint8_t *src, size_t len);
-uint8_t reversebytes(uint8_t b);
-void reverse_arraybytes(uint8_t *arr, size_t len);
-void reverse_arraycopy(uint8_t *arr, uint8_t *dest, size_t len);
 #endif // CIPHERUTILS_H

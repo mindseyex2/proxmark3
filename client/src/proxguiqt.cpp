@@ -45,10 +45,9 @@
 
 extern "C" int preferences_save(void);
 
-static int s_Buff[MAX_GRAPH_TRACE_LEN];
-static bool gs_useOverlays = false;
 static int gs_absVMax = 0;
 static uint32_t startMax; // Maximum offset in the graph (right side of graph)
+static uint32_t startMaxOld;
 static uint32_t PageWidth; // How many samples are currently visible on this 'page' / graph
 static int unlockStart = 0;
 
@@ -65,8 +64,8 @@ void ProxGuiQT::HideGraphWindow(void) {
 }
 
 // emit picture viewer signals
-void ProxGuiQT::ShowPictureWindow(char *fn) {
-    emit ShowPictureWindowSignal(fn);
+void ProxGuiQT::ShowPictureWindow(const QImage &img) {
+    emit ShowPictureWindowSignal(img);
 }
 
 void ProxGuiQT::ShowBase64PictureWindow(char *b64) {
@@ -116,23 +115,13 @@ void ProxGuiQT::_HideGraphWindow(void) {
 }
 
 // picture viewer
-void ProxGuiQT::_ShowPictureWindow(char *fn) {
+void ProxGuiQT::_ShowPictureWindow(const QImage &img) {
 
     if (!plotapp)
         return;
 
-    if (fn == NULL)
+    if (img.isNull())
         return;
-
-    size_t slen = strlen(fn);
-    if (slen == 0)
-        return;
-
-    char *myfn = (char *)calloc(slen + 1, sizeof(uint8_t));
-    if (myfn == NULL)
-        return;
-
-    memcpy(myfn, fn, slen);
 
     if (!pictureWidget) {
 
@@ -143,12 +132,7 @@ void ProxGuiQT::_ShowPictureWindow(char *fn) {
         pictureWidget = new PictureWidget();
     }
 
-    QPixmap pm;
-    if (pm.load(myfn) == false) {
-        qWarning("Failed to load %s", myfn);
-    }
-    free(myfn);
-    free(fn);
+    QPixmap pm = QPixmap::fromImage(img);
 
     //QPixmap newPixmap = pm.scaled(QSize(50,50),  Qt::KeepAspectRatio);
     //pm = pm.scaled(pictureController->lbl_pm->size(),  Qt::KeepAspectRatio);
@@ -163,6 +147,7 @@ void ProxGuiQT::_ShowPictureWindow(char *fn) {
                     );
     pictureController->lbl_sz->setText(s);
     pictureWidget->show();
+
 }
 
 void ProxGuiQT::_ShowBase64PictureWindow(char *b64) {
@@ -217,6 +202,7 @@ void ProxGuiQT::_RepaintPictureWindow(void) {
         return;
 
     pictureWidget->update();
+
 }
 
 void ProxGuiQT::_HidePictureWindow(void) {
@@ -264,7 +250,7 @@ void ProxGuiQT::MainLoop() {
     connect(this, SIGNAL(ExitSignal()), this, SLOT(_Exit()));
 
     // hook up picture viewer signals
-    connect(this, SIGNAL(ShowPictureWindowSignal(char *)), this, SLOT(_ShowPictureWindow(char *)));
+    connect(this, SIGNAL(ShowPictureWindowSignal(const QImage &)), this, SLOT(_ShowPictureWindow(const QImage &)));
     connect(this, SIGNAL(ShowBase64PictureWindowSignal(char *)), this, SLOT(_ShowBase64PictureWindow(char *)));
     connect(this, SIGNAL(RepaintPictureWindowSignal()), this, SLOT(_RepaintPictureWindow()));
     connect(this, SIGNAL(HidePictureWindowSignal()), this, SLOT(_HidePictureWindow()));
@@ -351,40 +337,52 @@ void SliderWidget::moveEvent(QMoveEvent *event) {
 //--------------------
 void ProxWidget::applyOperation() {
     //printf("ApplyOperation()");
-    save_restoreGB(GRAPH_SAVE);
-    memcpy(g_GraphBuffer, s_Buff, sizeof(int) * g_GraphTraceLen);
+    //g_saveState_gb = save_bufferS32(g_GraphBuffer, g_GraphTraceLen);
+    memcpy(g_GraphBuffer, g_OverlayBuffer, sizeof(int) * g_GraphTraceLen);
     RepaintGraphWindow();
 }
 void ProxWidget::stickOperation() {
-    save_restoreGB(GRAPH_RESTORE);
+    //restore_bufferS32(g_saveState_gb, g_GraphBuffer);
     //printf("stickOperation()");
 }
 void ProxWidget::vchange_autocorr(int v) {
-    int ans = AutoCorrelate(g_GraphBuffer, s_Buff, g_GraphTraceLen, v, true, false);
+    int ans = AutoCorrelate(g_GraphBuffer, g_OverlayBuffer, g_GraphTraceLen, v, true, false);
     if (g_debugMode) printf("vchange_autocorr(w:%d): %d\n", v, ans);
-    gs_useOverlays = true;
+    g_useOverlays = true;
     RepaintGraphWindow();
 }
 void ProxWidget::vchange_askedge(int v) {
     //extern int AskEdgeDetect(const int *in, int *out, int len, int threshold);
-    int ans = AskEdgeDetect(g_GraphBuffer, s_Buff, g_GraphTraceLen, v);
+    int ans = AskEdgeDetect(g_GraphBuffer, g_OverlayBuffer, g_GraphTraceLen, v);
     if (g_debugMode) printf("vchange_askedge(w:%d)%d\n", v, ans);
-    gs_useOverlays = true;
+    g_useOverlays = true;
     RepaintGraphWindow();
 }
 void ProxWidget::vchange_dthr_up(int v) {
     int down = opsController->horizontalSlider_dirthr_down->value();
-    directionalThreshold(g_GraphBuffer, s_Buff, g_GraphTraceLen, v, down);
+    directionalThreshold(g_GraphBuffer, g_OverlayBuffer, g_GraphTraceLen, v, down);
     //printf("vchange_dthr_up(%d)", v);
-    gs_useOverlays = true;
+    g_useOverlays = true;
     RepaintGraphWindow();
 }
 void ProxWidget::vchange_dthr_down(int v) {
     //printf("vchange_dthr_down(%d)", v);
     int up = opsController->horizontalSlider_dirthr_up->value();
-    directionalThreshold(g_GraphBuffer, s_Buff, g_GraphTraceLen, v, up);
-    gs_useOverlays = true;
+    directionalThreshold(g_GraphBuffer, g_OverlayBuffer, g_GraphTraceLen, v, up);
+    g_useOverlays = true;
     RepaintGraphWindow();
+}
+
+void ProxWidget::updateNavSlider() {
+    navSlider->blockSignals(true);
+    navSlider->setValue(g_GraphStart);
+    navSlider->setMaximum(startMax);
+    // for startMaxOld < g_GraphStart or startMax < g_GraphStart_old
+    navSlider->setValue(g_GraphStart);
+    navSlider->setMaximum(startMax);
+    // for click
+    navSlider->setPageStep(startMax / 10);
+    navSlider->blockSignals(false);
 }
 
 
@@ -421,9 +419,19 @@ ProxWidget::ProxWidget(QWidget *parent, ProxGuiQT *master) : QWidget(parent) {
 
     // Set up the plot widget, which does the actual plotting
     plot = new Plot(this);
+    navSlider = new QSlider(this);
     QVBoxLayout *layout = new QVBoxLayout;
-    layout->addWidget(plot);
+    layout->addWidget(plot, 1);
+    layout->addWidget(navSlider);
     setLayout(layout);
+
+    navSlider->setOrientation(Qt::Horizontal);
+    plot->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    navSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    QObject::connect(navSlider, SIGNAL(valueChanged(int)), plot, SLOT(MoveTo(int)));
+    QObject::connect(plot, SIGNAL(startMaxChanged(uint32_t)), this, SLOT(updateNavSlider(void)));
+    QObject::connect(plot, SIGNAL(graphStartChanged(uint32_t)), this, SLOT(updateNavSlider(void)));
 
     // plot window title
     QString pt = QString("[*]Plot [ %1 ]").arg(g_conn.serial_port_name);
@@ -475,7 +483,7 @@ ProxWidget::~ProxWidget(void) {
 void ProxWidget::closeEvent(QCloseEvent *event) {
     event->ignore();
     this->hide();
-    gs_useOverlays = false;
+    g_useOverlays = false;
 }
 void ProxWidget::hideEvent(QHideEvent *event) {
     controlWidget->hide();
@@ -508,7 +516,9 @@ int Plot::xCoordOf(int i, QRect r) {
 
 int Plot::yCoordOf(int v, QRect r, int maxVal) {
     int z = (r.bottom() - r.top()) / 2;
-    if (maxVal == 0) ++maxVal;
+    if (maxVal == 0) {
+        ++maxVal;
+    }
     return -(z * v) / maxVal + z;
 }
 
@@ -526,6 +536,7 @@ static const QColor GREEN     = QColor(100, 255, 100);
 static const QColor RED       = QColor(255, 100, 100);
 static const QColor BLUE      = QColor(100, 100, 255);
 static const QColor YELLOW    = QColor(255, 255, 0);
+static const QColor CITRON    = QColor(215, 197, 46);
 static const QColor PINK      = QColor(255, 0, 255);
 static const QColor ORANGE    = QColor(255, 153, 0);
 static const QColor LIGHTBLUE = QColor(100, 209, 246);
@@ -544,17 +555,27 @@ QColor Plot::getColor(int graphNum) {
 }
 
 void Plot::setMaxAndStart(int *buffer, size_t len, QRect plotRect) {
-    if (len == 0) return;
+    if (len == 0) {
+        return;
+    }
+
     startMax = 0;
+
     if (plotRect.right() >= plotRect.left() + 40) {
         uint32_t t = (plotRect.right() - plotRect.left() - 40) / g_GraphPixelsPerPoint;
-        if (len >= t)
+        if (len >= t) {
             startMax = len - t;
+        }
     }
+
     if (g_GraphStart > startMax) {
         g_GraphStart = startMax;
     }
-    if (g_GraphStart > len) return;
+
+    if (g_GraphStart > len) {
+        return;
+    }
+
     int vMin = INT_MAX, vMax = INT_MIN;
     uint32_t sample_index = g_GraphStart ;
     for (; sample_index < len && xCoordOf(sample_index, plotRect) < plotRect.right() ; sample_index++) {
@@ -565,14 +586,49 @@ void Plot::setMaxAndStart(int *buffer, size_t len, QRect plotRect) {
     }
 
     gs_absVMax = 0;
-    if (fabs((double) vMin) > gs_absVMax) gs_absVMax = (int)fabs((double) vMin);
-    if (fabs((double) vMax) > gs_absVMax) gs_absVMax = (int)fabs((double) vMax);
+    if (fabs((double) vMin) > gs_absVMax) {
+        gs_absVMax = (int)fabs((double) vMin);
+    }
+
+    if (fabs((double) vMax) > gs_absVMax) {
+        gs_absVMax = (int)fabs((double) vMax);
+    }
+
+    gs_absVMax = (int)(gs_absVMax * 1.25 + 1);
+}
+
+void Plot::appendMax(int *buffer, size_t len, QRect plotRect) {
+    if (len == 0) {
+        return;
+    }
+
+    int vMin = INT_MAX, vMax = INT_MIN;
+    uint32_t sample_index = g_GraphStart ;
+
+    for (; sample_index < len && xCoordOf(sample_index, plotRect) < plotRect.right() ; sample_index++) {
+
+        int v = buffer[sample_index];
+        if (v < vMin) vMin = v;
+        if (v > vMax) vMax = v;
+    }
+
+    if (fabs((double) vMin) > gs_absVMax) {
+        gs_absVMax = (int)fabs((double) vMin);
+    }
+
+    if (fabs((double) vMax) > gs_absVMax) {
+        gs_absVMax = (int)fabs((double) vMax);
+    }
+
     gs_absVMax = (int)(gs_absVMax * 1.25 + 1);
 }
 
 void Plot::PlotDemod(uint8_t *buffer, size_t len, QRect plotRect, QRect annotationRect, QPainter *painter, int graphNum, uint32_t plotOffset) {
-    if (len == 0 || g_PlotGridX <= 0) return;
-    //clock_t begin = clock();
+
+    if (len == 0 || g_PlotGridX <= 0) {
+        return;
+    }
+
     QPainterPath penPath;
 
     int grid_delta_x = g_PlotGridX;
@@ -612,7 +668,7 @@ void Plot::PlotDemod(uint8_t *buffer, size_t len, QRect plotRect, QRect annotati
             }
             if (j == (int)clk / 2) {
                 //print label
-                sprintf(str, "%u", buffer[i]);
+                snprintf(str, sizeof(str), "%u", buffer[i]);
                 painter->drawText(x - 8, y + ((buffer[i] > 0) ? 18 : -6), str);
             }
         }
@@ -620,17 +676,19 @@ void Plot::PlotDemod(uint8_t *buffer, size_t len, QRect plotRect, QRect annotati
         clk = grid_delta_x;
     }
 
-    // Graph annotations
     painter->drawPath(penPath);
 }
 
 void Plot::PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRect, QPainter *painter, int graphNum) {
-    if (len == 0) return;
-    // clock_t begin = clock();
+
+    if (len == 0) {
+        return;
+    }
+
     QPainterPath penPath;
-    int vMin = INT_MAX, vMax = INT_MIN, v = 0;
     int64_t vMean = 0;
     uint32_t i = 0;
+    int vMin = INT_MAX, vMax = INT_MIN, v = 0;
     int x = xCoordOf(g_GraphStart, plotRect);
     int y = yCoordOf(buffer[g_GraphStart], plotRect, gs_absVMax);
     penPath.moveTo(x, y);
@@ -638,7 +696,6 @@ void Plot::PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRe
 
         x = xCoordOf(i, plotRect);
         v = buffer[i];
-
         y = yCoordOf(v, plotRect, gs_absVMax);
 
         penPath.lineTo(x, y);
@@ -652,6 +709,7 @@ void Plot::PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRe
         if (v > vMax) vMax = v;
         vMean += v;
     }
+
     g_GraphStop = i;
     vMean /= (g_GraphStop - g_GraphStart);
 
@@ -673,15 +731,17 @@ void Plot::PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRe
         int y0 = yCoordOf(v, plotRect, gs_absVMax);
         int y1 = yCoordOf(-v, plotRect, gs_absVMax);
 
-        if (lasty0 - y0 < minYDist) continue;
+        if (lasty0 - y0 < minYDist) {
+            continue;
+        }
 
         painter->drawLine(xo - 5, y0, xo + 5, y0);
 
-        sprintf(yLbl, "%d", v);
+        snprintf(yLbl, sizeof(yLbl), "%d", v);
         painter->drawText(xo + 8, y0 + 7, yLbl);
 
         painter->drawLine(xo - 5, y1, xo + 5, y1);
-        sprintf(yLbl, "%d", -v);
+        snprintf(yLbl, sizeof(yLbl), "%d", -v);
         painter->drawText(xo + 8, y1 + 5, yLbl);
         lasty0 = y0;
     }
@@ -689,27 +749,186 @@ void Plot::PlotGraph(int *buffer, size_t len, QRect plotRect, QRect annotationRe
     //Graph annotations
     painter->drawPath(penPath);
     char str[200];
-    sprintf(str, "max=%d  min=%d  mean=%" PRId64 "  n=%u/%zu  CursorAVal=[%d]  CursorBVal=[%d]",
-            vMax, vMin, vMean, g_GraphStop - g_GraphStart, len, buffer[CursorAPos], buffer[CursorBPos]);
-    painter->drawText(20, annotationRect.bottom() - 23 - 20 * graphNum, str);
-    //clock_t end = clock();
-    //double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    //printf("Plot time %f\n", elapsed_secs);
+    snprintf(str, sizeof(str), "max=%d  min=%d  mean=%" PRId64 "  n=%u/%zu",
+             vMax,
+             vMin,
+             vMean,
+             g_GraphStop - g_GraphStart,
+             len
+            );
+
+    painter->drawText(20, annotationRect.bottom() - (48 - (12 * graphNum)), str);
+}
+
+void Plot::drawAnnotations(QRect annotationRect, QPainter *painter) {
+    char *annotation;
+    uint32_t length = 0;
+
+    // Make a tiny black box at the bottom of the plot window
+    QRect f(QPoint(80, annotationRect.bottom() - 59), QPoint(annotationRect.right(), annotationRect.bottom() - 74));
+    painter->fillRect(f, BLACK);
+
+    //Setup the scale string
+    char scalestr[20] = {0};
+
+    if (g_CursorScaleFactor != 1) {
+        if (g_CursorScaleFactorUnit[0] == '\x00') {
+            snprintf(scalestr, sizeof(scalestr), "[%2.2f] ", ((int32_t)(g_MarkerB.pos - g_MarkerA.pos)) / g_CursorScaleFactor);
+        } else {
+            snprintf(scalestr, sizeof(scalestr), "[%2.2f %s] ", ((int32_t)(g_MarkerB.pos - g_MarkerA.pos)) / g_CursorScaleFactor, g_CursorScaleFactorUnit);
+        }
+    }
+
+    //Print the Graph Information
+    char graphText[] = "@%u..%u  dt=%i %s zoom=%2.3f";
+    length = ((sizeof(graphText)) + (sizeof(uint32_t) * 3) + sizeof(scalestr) + sizeof(float_t));
+
+    annotation = (char *)calloc(1, length);
+
+    snprintf(annotation, length, graphText,
+             g_GraphStart,
+             g_GraphStop,
+             g_MarkerB.pos - g_MarkerA.pos,
+             scalestr,
+             g_GraphPixelsPerPoint
+            );
+
+    painter->setPen(GREEN);
+    painter->drawText(82, annotationRect.bottom() - 62, annotation);
+
+    //Print Grid Information if the grid is enabled
+    if (g_PlotGridX > 0) {
+        free(annotation);
+
+        const char *gridLocked = (g_GridLocked ? "Locked" : "Unlocked");
+        char gridText[] = "GridX=%lf  GridY=%lf (%s) GridXoffset=%lf";
+        length = (sizeof(gridText) + (sizeof(double) * 3) + sizeof(gridLocked));
+
+        annotation = (char *)calloc(1, length);
+
+        snprintf(annotation, length, gridText,
+                 g_DefaultGridX,
+                 g_DefaultGridY,
+                 gridLocked,
+                 g_GridOffset
+                );
+
+        painter->setPen(WHITE);
+        painter->drawText(800, annotationRect.bottom() - 62, annotation);
+    }
+
+    //Print the Marker Information
+    char markerText[] = "Marker%s={Pos=%u Val=%d}";
+    uint32_t pos = 0, loc = 375;
+    painter->setPen(WHITE);
+
+    if (g_MarkerA.pos > 0) {
+        free(annotation);
+
+        length = (sizeof(markerText) + (sizeof(uint32_t) * 3) + sizeof(" ") + 1);
+        pos = g_MarkerA.pos;
+        bool flag = false;
+        size_t value;
+
+        annotation = (char *)calloc(1, length);
+        char *textA = (char *)calloc(1, length);
+
+        strcat(textA, markerText);
+        strcat(textA, " (%s%u)");
+
+        if (g_GraphBuffer[pos] <= g_OperationBuffer[pos]) {
+            flag = true;
+            value = (g_OperationBuffer[pos] - g_GraphBuffer[pos]);
+        } else {
+            value = (g_GraphBuffer[pos] - g_OperationBuffer[pos]);
+        }
+
+        snprintf(annotation, length, textA,
+                 "A",
+                 pos,
+                 g_GraphBuffer[pos],
+                 flag ? "+" : "-",
+                 value
+                );
+
+        painter->drawText(loc, annotationRect.bottom() - 48, annotation);
+
+        free(textA);
+    }
+
+    if (g_MarkerB.pos > 0) {
+        free(annotation);
+
+        length = ((sizeof(markerText)) + (sizeof(uint32_t) * 2) + 1);
+        pos = g_MarkerB.pos;
+
+        annotation = (char *)calloc(1, length);
+
+        snprintf(annotation, length, markerText,
+                 "B",
+                 pos,
+                 g_GraphBuffer[pos]
+                );
+
+        painter->drawText(loc, annotationRect.bottom() - 36, annotation);
+    }
+
+    if (g_MarkerC.pos > 0) {
+        free(annotation);
+
+        length = ((sizeof(markerText)) + (sizeof(uint32_t) * 2) + 1);
+        pos = g_MarkerC.pos;
+
+        annotation = (char *)calloc(1, length);
+
+        snprintf(annotation, length, markerText,
+                 "C",
+                 pos,
+                 g_GraphBuffer[pos]
+                );
+
+        painter->drawText(loc, annotationRect.bottom() - 24, annotation);
+    }
+
+    if (g_MarkerD.pos > 0) {
+        free(annotation);
+
+        length = ((sizeof(markerText)) + (sizeof(uint32_t) * 2) + 1);
+        pos = g_MarkerD.pos;
+
+        annotation = (char *)calloc(1, length);
+
+        snprintf(annotation, length, markerText,
+                 "D",
+                 pos,
+                 g_GraphBuffer[pos]
+                );
+
+        painter->drawText(loc, annotationRect.bottom() - 12, annotation);
+    }
+
+    free(annotation);
 }
 
 void Plot::plotGridLines(QPainter *painter, QRect r) {
 
     // set g_GridOffset
-    if (g_PlotGridX <= 0) return;
+    if (g_PlotGridX <= 0) {
+        return;
+    }
 
     double offset = g_GridOffset;
     if (g_GridLocked && g_PlotGridX) {
         offset = g_GridOffset + g_PlotGridX - fmod(g_GraphStart, g_PlotGridX);
-    } else if (!g_GridLocked && g_GraphStart > 0 && g_PlotGridX) {
+    } else if (g_GridLocked == false && g_GraphStart > 0 && g_PlotGridX) {
         offset = g_PlotGridX - fmod(g_GraphStart - offset, g_PlotGridX) + g_GraphStart - unlockStart;
     }
+
     offset = fmod(offset, g_PlotGridX);
-    if (offset < 0) offset += g_PlotGridX;
+
+    if (offset < 0) {
+        offset += g_PlotGridX;
+    }
 
     double i;
     double grid_delta_x = g_PlotGridX * g_GraphPixelsPerPoint;
@@ -731,6 +950,53 @@ void Plot::plotGridLines(QPainter *painter, QRect r) {
     }
 }
 
+void Plot::plotOperations(int *buffer, size_t len, QPainter *painter, QRect plotRect) {
+    if (len == 0) {
+        return;
+    }
+
+    QPainterPath penPath;
+    int32_t x = xCoordOf(g_GraphStart, plotRect), prevX = 0;
+    int32_t y = yCoordOf(buffer[g_GraphStart], plotRect, gs_absVMax), prevY = 0;
+    int32_t current = 0, prev = 0;
+    bool changed = false;
+
+    for (uint32_t pos = g_GraphStart; pos < len && xCoordOf(pos, plotRect) < plotRect.right(); pos++) {
+        //Store the previous x and y values to move the pen to if we need to draw a line
+        prevX = x;
+        prevY = y;
+
+        changed = false;
+        x = xCoordOf(pos, plotRect);
+        prev = current;
+        current = buffer[pos];
+        y = yCoordOf(current, plotRect, gs_absVMax);
+
+        //We only want to graph changes between the Graph Buffer and the Operation Buffer
+        if (current == g_GraphBuffer[pos]) {
+            //If this point is the same, but the last point is different, we want to plot that line
+            //as well
+            if ((pos == 0) || (prev == g_GraphBuffer[pos - 1])) {
+                continue;
+            }
+        } else {
+            changed = true;
+        }
+
+        penPath.moveTo(prevX, prevY); //Move the pen
+        penPath.lineTo(x, y); //Draw the line from the previous coords to the new ones
+
+        //Only draw a white square if the point is different
+        if (g_GraphPixelsPerPoint > 10 && changed) {
+            QRect point(QPoint(x - 3, y - 3), QPoint(x + 3, y + 3));
+            painter->fillRect(point, WHITE);
+        }
+    }
+
+    painter->setPen(CITRON);
+    painter->drawPath(penPath);
+}
+
 #define HEIGHT_INFO 60
 #define WIDTH_AXES 80
 
@@ -740,15 +1006,6 @@ void Plot::paintEvent(QPaintEvent *event) {
     QPen pen(GREEN);
 
     painter.setFont(QFont("Courier New", 10));
-
-    if (CursorAPos > g_GraphTraceLen)
-        CursorAPos = 0;
-    if (CursorBPos > g_GraphTraceLen)
-        CursorBPos = 0;
-    if (g_CursorCPos > g_GraphTraceLen)
-        g_CursorCPos = 0;
-    if (g_CursorDPos > g_GraphTraceLen)
-        g_CursorDPos = 0;
 
     QRect plotRect(WIDTH_AXES, 0, width() - WIDTH_AXES, height() - HEIGHT_INFO);
     QRect infoRect(0, height() - HEIGHT_INFO, width(), HEIGHT_INFO);
@@ -761,6 +1018,7 @@ void Plot::paintEvent(QPaintEvent *event) {
 
     //init graph variables
     setMaxAndStart(g_GraphBuffer, g_GraphTraceLen, plotRect);
+    //appendMax(g_OperationBuffer, g_GraphTraceLen, plotRect);
 
     // center line
     int zeroHeight = plotRect.top() + (plotRect.bottom() - plotRect.top()) / 2;
@@ -774,56 +1032,60 @@ void Plot::paintEvent(QPaintEvent *event) {
     if (g_DemodBufferLen > 8) {
         PlotDemod(g_DemodBuffer, g_DemodBufferLen, plotRect, infoRect, &painter, 2, g_DemodStartIdx);
     }
-    if (gs_useOverlays) {
+
+    //Plot the Operation Overlay
+    //plotOperations(g_OperationBuffer, g_GraphTraceLen, &painter, plotRect);
+
+    //Plot the Overlay
+    if (g_useOverlays) {
         //init graph variables
-        setMaxAndStart(s_Buff, g_GraphTraceLen, plotRect);
-        PlotGraph(s_Buff, g_GraphTraceLen, plotRect, infoRect, &painter, 1);
+        setMaxAndStart(g_OverlayBuffer, g_GraphTraceLen, plotRect);
+        PlotGraph(g_OverlayBuffer, g_GraphTraceLen, plotRect, infoRect, &painter, 1);
     }
     // End graph drawing
 
-    //Draw the cursors
-    if (CursorAPos > g_GraphStart && xCoordOf(CursorAPos, plotRect) < plotRect.right()) {
-        painter.setPen(YELLOW);
-        painter.drawLine(xCoordOf(CursorAPos, plotRect), plotRect.top(), xCoordOf(CursorAPos, plotRect), plotRect.bottom());
-    }
-    if (CursorBPos > g_GraphStart && xCoordOf(CursorBPos, plotRect) < plotRect.right()) {
-        painter.setPen(PINK);
-        painter.drawLine(xCoordOf(CursorBPos, plotRect), plotRect.top(), xCoordOf(CursorBPos, plotRect), plotRect.bottom());
-    }
-    if (g_CursorCPos > g_GraphStart && xCoordOf(g_CursorCPos, plotRect) < plotRect.right()) {
-        painter.setPen(ORANGE);
-        painter.drawLine(xCoordOf(g_CursorCPos, plotRect), plotRect.top(), xCoordOf(g_CursorCPos, plotRect), plotRect.bottom());
-    }
-    if (g_CursorDPos > g_GraphStart && xCoordOf(g_CursorDPos, plotRect) < plotRect.right()) {
-        painter.setPen(LIGHTBLUE);
-        painter.drawLine(xCoordOf(g_CursorDPos, plotRect), plotRect.top(), xCoordOf(g_CursorDPos, plotRect), plotRect.bottom());
-    }
-
-    //Draw annotations
-    char str[200];
-    char scalestr[30] = {0};
-    if (g_CursorScaleFactor != 1) {
-        if (g_CursorScaleFactorUnit[0] == '\x00') {
-            sprintf(scalestr, "[%2.2f] ", ((int32_t)(CursorBPos - CursorAPos)) / g_CursorScaleFactor);
-        } else {
-            sprintf(scalestr, "[%2.2f %s] ", ((int32_t)(CursorBPos - CursorAPos)) / g_CursorScaleFactor, g_CursorScaleFactorUnit);
+    //Draw the markers
+    if (g_TempMarkerSize > 0) {
+        for (int i = 0; i < g_TempMarkerSize; i++) {
+            draw_marker(g_TempMarkers[i], plotRect, GRAY100, &painter);
         }
     }
-    sprintf(str, "@%u..%u  dt=%i %szoom=%2.2f  CursorAPos=%u  CursorBPos=%u  GridX=%lf  GridY=%lf (%s) GridXoffset=%lf",
-            g_GraphStart,
-            g_GraphStop,
-            CursorBPos - CursorAPos,
-            scalestr,
-            g_GraphPixelsPerPoint,
-            CursorAPos,
-            CursorBPos,
-            g_PlotGridXdefault,
-            g_PlotGridYdefault,
-            g_GridLocked ? "Locked" : "Unlocked",
-            g_GridOffset
-           );
-    painter.setPen(WHITE);
-    painter.drawText(20, infoRect.bottom() - 3, str);
+
+    draw_marker(g_MarkerA, plotRect, YELLOW, &painter);
+    draw_marker(g_MarkerB, plotRect, PINK, &painter);
+    draw_marker(g_MarkerC, plotRect, ORANGE, &painter);
+    draw_marker(g_MarkerD, plotRect, LIGHTBLUE, &painter);
+
+    //Draw annotations
+    drawAnnotations(infoRect, &painter);
+
+    if (startMaxOld != startMax) {
+        emit startMaxChanged(startMax);
+    }
+    startMaxOld = startMax;
+
+    if (g_GraphStart != g_GraphStart_old) {
+        emit graphStartChanged(g_GraphStart);
+    }
+    g_GraphStart_old = g_GraphStart;
+}
+
+void Plot::draw_marker(marker_t marker, QRect plotRect, QColor color, QPainter *painter) {
+    painter->setPen(color);
+
+    //If the marker is outside the buffer length, reset
+    if (marker.pos > g_GraphTraceLen) {
+        marker.pos = 0;
+    }
+
+    //Make sure the marker is inside the current plot view to render
+    if (marker.pos > g_GraphStart && xCoordOf(marker.pos, plotRect) < plotRect.right()) {
+        painter->drawLine(xCoordOf(marker.pos, plotRect), plotRect.top(), xCoordOf(marker.pos, plotRect), plotRect.bottom());
+
+        if (strlen(marker.label) > 0) {
+            painter->drawText(xCoordOf(marker.pos, plotRect) + 1, plotRect.top() + 12, marker.label);
+        }
+    }
 }
 
 Plot::Plot(QWidget *parent) : QWidget(parent), g_GraphPixelsPerPoint(1) {
@@ -838,8 +1100,10 @@ Plot::Plot(QWidget *parent) : QWidget(parent), g_GraphPixelsPerPoint(1) {
     setPalette(palette);
     setAutoFillBackground(true);
 
-    CursorAPos = 0;
-    CursorBPos = 0;
+    g_MarkerA.pos = 0;
+    g_MarkerB.pos = 0;
+    g_MarkerC.pos = 0;
+    g_MarkerD.pos = 0;
     g_GraphStart = 0;
     g_GraphStop = 0;
 
@@ -850,20 +1114,28 @@ Plot::Plot(QWidget *parent) : QWidget(parent), g_GraphPixelsPerPoint(1) {
 void Plot::closeEvent(QCloseEvent *event) {
     event->ignore();
     this->hide();
-    gs_useOverlays = false;
+    g_useOverlays = false;
 }
 
+// every 4 steps the zoom doubles (or halves)
+#define ZOOM_STEP (1.189207)
+// limit zoom to 32 times in either direction
+#define ZOOM_LIMIT (32)
+
 void Plot::Zoom(double factor, uint32_t refX) {
+    double g_GraphPixelsPerPointNew = g_GraphPixelsPerPoint * factor;
+
     if (factor >= 1) { // Zoom in
-        if (g_GraphPixelsPerPoint <= 25 * factor) {
-            g_GraphPixelsPerPoint *= factor;
+        if (g_GraphPixelsPerPointNew <= ZOOM_LIMIT) {
+            g_GraphPixelsPerPoint = g_GraphPixelsPerPointNew;
             if (refX > g_GraphStart) {
                 g_GraphStart += (refX - g_GraphStart) - ((refX - g_GraphStart) / factor);
             }
         }
     } else {          // Zoom out
-        if (g_GraphPixelsPerPoint >= 0.01 / factor) {
-            g_GraphPixelsPerPoint *= factor;
+        if (g_GraphPixelsPerPointNew >= (1.0 / ZOOM_LIMIT)) {
+            g_GraphPixelsPerPoint = g_GraphPixelsPerPointNew;
+            // shift graph towards refX when zooming out
             if (refX > g_GraphStart) {
                 if (g_GraphStart >= ((refX - g_GraphStart) / factor) - (refX - g_GraphStart)) {
                     g_GraphStart -= ((refX - g_GraphStart) / factor) - (refX - g_GraphStart);
@@ -875,8 +1147,30 @@ void Plot::Zoom(double factor, uint32_t refX) {
     }
 }
 
+void Plot::MoveTo(uint32_t pos) {
+    if (g_GraphTraceLen == 0) {
+        return;
+    }
+
+    g_GraphStart = pos;
+
+    QObject *signalSender = sender();
+    if (signalSender != nullptr && signalSender != this) {
+        // Update if it's triggered by a signal from other object
+        this->update();
+    }
+}
+
+void Plot::MoveTo(int pos) {
+    MoveTo((uint32_t)((pos >= 0) ? pos : 0));
+    // sender() is still valid in the inner call
+}
+
 void Plot::Move(int offset) {
-    if (g_GraphTraceLen == 0) return;
+    if (g_GraphTraceLen == 0) {
+        return;
+    }
+
     if (offset > 0) { // Move right
         if (g_GraphPixelsPerPoint < 20) {
             g_GraphStart += offset;
@@ -900,35 +1194,41 @@ void Plot::Move(int offset) {
 
 void Plot::Trim(void) {
     uint32_t lref, rref;
-    const double zoom_offset = 1.148698354997035; // 2**(1/5)
-    if ((CursorAPos == 0) || (CursorBPos == 0)) { // if we don't have both cursors set
+    if ((g_MarkerA.pos == 0) || (g_MarkerB.pos == 0)) { // if we don't have both cursors set
         lref = g_GraphStart;
         rref = g_GraphStop;
-        if (CursorAPos >= lref) {
-            CursorAPos -= lref;
+        if (g_MarkerA.pos >= lref) {
+            g_MarkerA.pos -= lref;
         } else {
-            CursorAPos = 0;
+            g_MarkerA.pos = 0;
         }
-        if (CursorBPos >= lref) {
-            CursorBPos -= lref;
+        if (g_MarkerB.pos >= lref) {
+            g_MarkerB.pos -= lref;
         } else {
-            CursorBPos = 0;
+            g_MarkerB.pos = 0;
         }
     } else {
-        lref = CursorAPos < CursorBPos ? CursorAPos : CursorBPos;
-        rref = CursorAPos < CursorBPos ? CursorBPos : CursorAPos;
-        // g_GraphPixelsPerPoint mush remain a power of zoom_offset
+
+        lref = g_MarkerA.pos < g_MarkerB.pos ? g_MarkerA.pos : g_MarkerB.pos;
+        rref = g_MarkerA.pos < g_MarkerB.pos ? g_MarkerB.pos : g_MarkerA.pos;
+
+        // g_GraphPixelsPerPoint must remain a power of ZOOM_STEP
         double GPPPtarget = g_GraphPixelsPerPoint * (g_GraphStop - g_GraphStart) / (rref - lref);
+
         while (g_GraphPixelsPerPoint < GPPPtarget) {
-            g_GraphPixelsPerPoint *= zoom_offset;
+            g_GraphPixelsPerPoint *= ZOOM_STEP;
         }
-        g_GraphPixelsPerPoint /= zoom_offset;
-        CursorAPos -= lref;
-        CursorBPos -= lref;
+
+        g_GraphPixelsPerPoint /= ZOOM_STEP;
+        g_MarkerA.pos -= lref;
+        g_MarkerB.pos -= lref;
     }
     g_DemodStartIdx -= lref;
-    for (uint32_t i = lref; i < rref; ++i)
+
+    for (uint32_t i = lref; i < rref; ++i) {
         g_GraphBuffer[i - lref] = g_GraphBuffer[i];
+    }
+
     g_GraphTraceLen = rref - lref;
     g_GraphStart = 0;
 }
@@ -940,80 +1240,85 @@ void Plot::wheelEvent(QWheelEvent *event) {
     const float move_offset = 0.05;
     // -120+shift => zoom in  (5 times = *2)
     //  120+shift => zoom out (5 times = /2)
-    const double zoom_offset = 1.148698354997035; // 2**(1/5)
-    if (event->modifiers() & Qt::ShiftModifier) {
-// event->position doesn't exist in QT5.12.8, both exist in 5.14.2 and event->x doesn't exist in 5.15.0
 #if QT_VERSION >= 0x050d00
-        uint32_t x = event->position().x();
+    // event->position doesn't exist in QT5.12.8, both exist in 5.14.2 and event->x doesn't exist in 5.15.0
+    uint32_t x = event->position().x();
+    // event->angleDelta doesn't exist in QT4, both exist in 5.12.8 and 5.14.2 and event->delta doesn't exist in 5.15.0
+    float delta = -event->angleDelta().y();
 #else
-        uint32_t x = event->x();
+    uint32_t x = event->x();
+    float delta = -event->delta();
 #endif
+    if (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)) {
         x -= WIDTH_AXES;
         x = (int)(x / g_GraphPixelsPerPoint);
         x += g_GraphStart;
-// event->angleDelta doesn't exist in QT4, both exist in 5.12.8 and 5.14.2 and event->delta doesn't exist in 5.15.0
-#if QT_VERSION >= 0x050d00
-        float delta = event->angleDelta().y();
-#else
-        float delta = event->delta();
-#endif
+
         if (delta < 0) {
-            Zoom(zoom_offset, x);
+            Zoom(ZOOM_STEP, x);
         } else {
-            Zoom(1.0 / zoom_offset, x);
+            Zoom(1.0 / ZOOM_STEP, x);
         }
+
     } else {
-#if QT_VERSION >= 0x050d00
-        Move(PageWidth * (-(float)event->angleDelta().y() / (120 / move_offset)));
-#else
-        Move(PageWidth * (-(float)event->delta() / (120 / move_offset)));
-#endif
+        Move(PageWidth * delta * move_offset / 120);
     }
     this->update();
 }
 
 void Plot::mouseMoveEvent(QMouseEvent *event) {
     int x = event->x();
-    x -= WIDTH_AXES;
-    x = (int)(x / g_GraphPixelsPerPoint);
-    x += g_GraphStart;
-    if ((event->buttons() & Qt::LeftButton)) {
-        CursorAPos = x;
-    } else if (event->buttons() & Qt::RightButton) {
-        CursorBPos = x;
+
+    //Only run the marker place code if a mouse button is pressed
+    if ((event->buttons() & Qt::LeftButton) || (event->buttons() & Qt::RightButton)) {
+        x -= WIDTH_AXES;
+        x = (int)(x / g_GraphPixelsPerPoint);
+        x += g_GraphStart;
+
+        if (x > (int)g_GraphTraceLen)   x = 0; // Set to 0 if the number is stupidly big
+        else if (x < (int)g_GraphStart) x = (int)g_GraphStart; // Bounds checking for the start of the Graph Window
+        else if (x > (int)g_GraphStop)  x = (int)g_GraphStop; // Bounds checking for the end of the Graph Window
+
+        if ((event->buttons() & Qt::LeftButton)) { // True for left click, false otherwise
+            g_MarkerA.pos = x;
+        } else {
+            g_MarkerB.pos = x;
+        }
     }
+
     this->update();
 }
 
 void Plot::keyPressEvent(QKeyEvent *event) {
     uint32_t offset; // Left/right movement offset (in sample size)
-    const double zoom_offset = 1.148698354997035; // 2**(1/5)
 
     if (event->modifiers() & Qt::ShiftModifier) {
-        if (g_PlotGridX)
+        if (g_PlotGridX) {
             offset = PageWidth - fmod(PageWidth, g_PlotGridX);
-        else
+        } else {
             offset = PageWidth;
+        }
     } else {
-        if (event->modifiers() & Qt::ControlModifier)
+        if (event->modifiers() & Qt::ControlModifier) {
             offset = 1;
-        else
-            offset = (int)(20 / g_GraphPixelsPerPoint);
+        } else {
+            offset = int(ZOOM_LIMIT / g_GraphPixelsPerPoint);
+        }
     }
 
     switch (event->key()) {
         case Qt::Key_Down:
             if (event->modifiers() & Qt::ShiftModifier) {
                 if (event->modifiers() & Qt::ControlModifier) {
-                    Zoom(zoom_offset, CursorBPos);
+                    Zoom(ZOOM_STEP, g_MarkerB.pos);
                 } else {
-                    Zoom(2, CursorBPos);
+                    Zoom(ZOOM_STEP * 2, g_MarkerB.pos);
                 }
             } else {
                 if (event->modifiers() & Qt::ControlModifier) {
-                    Zoom(zoom_offset, CursorAPos);
+                    Zoom(ZOOM_STEP, g_MarkerA.pos);
                 } else {
-                    Zoom(2, CursorAPos);
+                    Zoom(ZOOM_STEP * 2, g_MarkerA.pos);
                 }
             }
             break;
@@ -1021,15 +1326,15 @@ void Plot::keyPressEvent(QKeyEvent *event) {
         case Qt::Key_Up:
             if (event->modifiers() & Qt::ShiftModifier) {
                 if (event->modifiers() & Qt::ControlModifier) {
-                    Zoom(1.0 / zoom_offset, CursorBPos);
+                    Zoom(1.0 / ZOOM_STEP, g_MarkerB.pos);
                 } else {
-                    Zoom(0.5, CursorBPos);
+                    Zoom(1.0 / (ZOOM_STEP * 2), g_MarkerB.pos);
                 }
             } else {
                 if (event->modifiers() & Qt::ControlModifier) {
-                    Zoom(1.0 / zoom_offset, CursorAPos);
+                    Zoom(1.0 / ZOOM_STEP, g_MarkerA.pos);
                 } else {
-                    Zoom(0.5, CursorAPos);
+                    Zoom(1.0 / (ZOOM_STEP * 2), g_MarkerA.pos);
                 }
             }
             break;
@@ -1055,13 +1360,16 @@ void Plot::keyPressEvent(QKeyEvent *event) {
                 g_PlotGridX = 0;
                 g_PlotGridY = 0;
             } else {
-                if (g_PlotGridXdefault < 0)
-                    g_PlotGridXdefault = 64;
-                if (g_PlotGridYdefault < 0)
-                    g_PlotGridYdefault = 0;
+                if (g_DefaultGridX < 0) {
+                    g_DefaultGridX = 64;
+                }
 
-                g_PlotGridX = g_PlotGridXdefault;
-                g_PlotGridY = g_PlotGridYdefault;
+                if (g_DefaultGridY < 0) {
+                    g_DefaultGridY = 0;
+                }
+
+                g_PlotGridX = g_DefaultGridX;
+                g_PlotGridY = g_DefaultGridY;
             }
             break;
 
@@ -1078,18 +1386,25 @@ void Plot::keyPressEvent(QKeyEvent *event) {
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("PgUp") "/" _RED_("PgDown"), "Move left/right by 1 window");
             PrintAndLogEx(NORMAL, "\n" _GREEN_("Zoom:"));
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("Shift") " + " _YELLOW_("Mouse wheel"), "Zoom in/out around mouse cursor");
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("Down") "/" _RED_("Up"), "Zoom in/out around yellow cursor");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("Down") "/" _RED_("Up"), "Zoom in/out around yellow marker");
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Ctrl"), "... with smaller increment");
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Shift"), "... around purple cursor");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Shift"), "... around purple marker");
             PrintAndLogEx(NORMAL, "\n" _GREEN_("Trim:"));
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("t"), "Trim data on window or on cursors if defined");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("t"), "Trim data on window or on markers (if defined)");
             PrintAndLogEx(NORMAL, "\n" _GREEN_("Grid and demod:"));
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("g"), "Toggle grid and demodulation plot display");
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("l"), "Toggle lock grid relative to samples");
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("<") "/" _RED_(">"), "Move demodulation left/right relative to samples");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("< ") "/" _RED_(" >"), "Move demodulation left/right relative to samples");
             PrintAndLogEx(NORMAL, "\n" _GREEN_("Misc:"));
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _YELLOW_("Left mouse click"), "Set yellow cursor");
-            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _YELLOW_("Right mouse click"), "Set purple cursor");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _YELLOW_("Left mouse click"), "Set yellow marker");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _YELLOW_("Right mouse click"), "Set purple marker");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("[ ") "/" _RED_(" ]"), "Move yellow marker left/right by 1 sample");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("{ ") "/" _RED_(" }"), "Move purple marker left/right by 1 sample");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Ctrl"), "... by 5 samples");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("= ") "/" _RED_(" -"), "Add/Subtract to the plot point (Operation Buffer) over the yellow marker by 1");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Ctrl"), "... by 5");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9 + 9, _RED_("+ ") "/" _RED_(" _"), "Add/Subtract to the plot point (Graph Buffer) over the yellow marker by 1");
+            PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, " + " _RED_("Ctrl"), "... by 5");
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("h"), "Show this help");
             PrintAndLogEx(NORMAL, "    %-*s%s", 25 + 9, _RED_("q"), "Close plot window");
             g_printAndLog = old_printAndLog;
@@ -1097,10 +1412,12 @@ void Plot::keyPressEvent(QKeyEvent *event) {
         }
         case Qt::Key_L:
             g_GridLocked = !g_GridLocked;
-            if (g_GridLocked)
+
+            if (g_GridLocked) {
                 g_GridOffset += (g_GraphStart - unlockStart);
-            else
+            } else {
                 unlockStart = g_GraphStart;
+            }
             break;
 
         case Qt::Key_Q:
@@ -1131,6 +1448,124 @@ void Plot::keyPressEvent(QKeyEvent *event) {
             g_GraphStart += PageWidth;
             if (g_GraphStart > startMax)
                 g_GraphStart = startMax;
+            break;
+
+        case Qt::Key_Equal:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_OperationBuffer[g_MarkerA.pos] += 5;
+            } else {
+                g_OperationBuffer[g_MarkerA.pos] += 1;
+            }
+
+            RepaintGraphWindow();
+            break;
+
+        case Qt::Key_Minus:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_OperationBuffer[g_MarkerA.pos] -= 5;
+            } else {
+                g_OperationBuffer[g_MarkerA.pos] -= 1;
+            }
+
+            RepaintGraphWindow();
+            break;
+
+        case Qt::Key_Plus:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_GraphBuffer[g_MarkerA.pos] += 5;
+            } else {
+                g_GraphBuffer[g_MarkerA.pos] += 1;
+            }
+
+            RepaintGraphWindow();
+            break;
+
+        case Qt::Key_Underscore:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_GraphBuffer[g_MarkerA.pos] -= 5;
+            } else {
+                g_GraphBuffer[g_MarkerA.pos] -= 1;
+            }
+
+            RepaintGraphWindow();
+            break;
+
+        case Qt::Key_BracketLeft: {
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_MarkerA.pos -= 5;
+            } else {
+                g_MarkerA.pos -= 1;
+            }
+
+            if ((g_MarkerA.pos >= g_GraphStop) || (g_MarkerA.pos <= g_GraphStart)) {
+                uint32_t halfway = PageWidth / 2;
+
+                if ((g_MarkerA.pos - halfway) > g_GraphTraceLen) {
+                    g_GraphStart = 0;
+                }  else {
+                    g_GraphStart = g_MarkerA.pos - halfway;
+                }
+            }
+
+            if (g_MarkerA.pos < g_GraphStart) {
+                g_MarkerA.pos = g_GraphStart;
+            }
+
+            RepaintGraphWindow();
+            break;
+        }
+
+        case Qt::Key_BracketRight: {
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_MarkerA.pos += 5;
+            } else {
+                g_MarkerA.pos += 1;
+            }
+
+            if ((g_MarkerA.pos >= g_GraphStop) || (g_MarkerA.pos <= g_GraphStart)) {
+                uint32_t halfway = PageWidth / 2;
+
+                if ((g_MarkerA.pos + halfway) >= g_GraphTraceLen) {
+                    g_GraphStart = g_GraphTraceLen - halfway;
+                } else {
+                    g_GraphStart = g_MarkerA.pos - halfway;
+                }
+            }
+
+            if (g_MarkerA.pos >= g_GraphTraceLen) {
+                g_MarkerA.pos = g_GraphTraceLen;
+            }
+
+            RepaintGraphWindow();
+            break;
+        }
+
+        case Qt::Key_BraceLeft:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_MarkerB.pos -= 5;
+            } else {
+                g_MarkerB.pos -= 1;
+            }
+
+            if (g_MarkerB.pos < g_GraphStart) {
+                g_MarkerB.pos = g_GraphStart;
+            }
+
+            RepaintGraphWindow();
+            break;
+
+        case Qt::Key_BraceRight:
+            if (event->modifiers() & Qt::ControlModifier) {
+                g_MarkerB.pos += 5;
+            } else {
+                g_MarkerB.pos += 1;
+            }
+
+            if (g_MarkerB.pos >= g_GraphTraceLen) {
+                g_MarkerB.pos = g_GraphTraceLen;
+            }
+
+            RepaintGraphWindow();
             break;
 
         default:

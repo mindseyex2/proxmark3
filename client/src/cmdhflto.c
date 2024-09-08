@@ -201,6 +201,31 @@ static int lto_rdbl(uint8_t blk, uint8_t *block_response, uint8_t *block_cnt_res
     return PM3_SUCCESS;
 }
 
+/*
+static int lto_rdbl_ext(uint16_t blk, uint8_t *block_response, uint8_t *block_cnt_response, bool verbose) {
+
+    if (blk && 0x) {
+        blk &= 0xFE;
+    }
+
+    uint16_t resp_len = 18;
+    uint8_t rdbl_ext_cmd[] = {0x21 , blk & 0xFF, (blk >> 8) & 0xFF};
+    uint8_t rdbl_cnt_cmd[] = {0x80};
+
+    int status = lto_send_cmd_raw(rdbl_ext_cmd, sizeof(rdbl_ext_cmd), block_response, &resp_len, true, false, verbose);
+    if (status == PM3_ETIMEOUT || status == PM3_ESOFT) {
+        return PM3_EWRONGANSWER; // READ BLOCK failed
+    }
+
+    status = lto_send_cmd_raw(rdbl_cnt_cmd, sizeof(rdbl_cnt_cmd), block_cnt_response, &resp_len, false, false, verbose);
+    if (status == PM3_ETIMEOUT || status == PM3_ESOFT) {
+        return PM3_EWRONGANSWER; // READ BLOCK CONTINUE failed
+    }
+
+    return PM3_SUCCESS;
+}
+*/
+
 static int CmdHfLTOInfo(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf lto info",
@@ -360,6 +385,65 @@ static void lto_print_mmi(uint8_t *d) {
 //  - Application Specific Data (1056b)
 //  - Suspended Append Writes (128b)
 
+static int CmdHFLTOReader(const char *Cmd) {
+
+    CLIParserContext *ctx;
+    CLIParserInit(&ctx, "hf lto reader",
+                  "Act as a LTO-CM reader. Look for LTO-CM tags until Enter or the pm3 button is pressed",
+                  "hf lto reader -@   -> continuous reader mode"
+                 );
+
+    void *argtable[] = {
+        arg_param_begin,
+        arg_lit0("@", NULL, "optional - continuous reader mode"),
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
+    bool cm = arg_get_lit(ctx, 1);
+    CLIParserFree(ctx);
+
+    if (cm) {
+        PrintAndLogEx(INFO, "Press " _GREEN_("<Enter>") " to exit");
+    }
+
+    return reader_lto(cm, true);
+}
+
+int reader_lto(bool loop, bool verbose) {
+
+    int ret = PM3_SUCCESS;
+
+    do {
+        uint8_t serial[5] = {0};
+        uint8_t serial_len = sizeof(serial);
+        uint8_t type_info[2] = {0};
+
+        lto_switch_off_field();
+        lto_switch_on_field();
+        clearCommandBuffer();
+
+        ret = lto_select(serial, serial_len, type_info, verbose);
+        if (loop) {
+            if (ret != PM3_SUCCESS) {
+                continue;
+            }
+        }
+
+        if (ret == PM3_SUCCESS) {
+
+            if (loop == false) {
+                PrintAndLogEx(NORMAL, "");
+            }
+
+            PrintAndLogEx(INFO, "UID......... " _GREEN_("%s"), sprint_hex_inrow(serial, sizeof(serial)));
+        }
+
+    } while (loop && kbd_enter_pressed() == false);
+
+    lto_switch_off_field();
+    return ret;
+}
+
 int infoLTO(bool verbose) {
 
     clearCommandBuffer();
@@ -372,6 +456,7 @@ int infoLTO(bool verbose) {
     int ret_val = lto_select(serial_number, serial_len, type_info, verbose);
     if (verbose == false) {
         if (ret_val == PM3_SUCCESS) {
+            PrintAndLogEx(NORMAL, "");
             PrintAndLogEx(INFO, "UID......... " _YELLOW_("%s"), sprint_hex_inrow(serial_number, sizeof(serial_number)));
         }
         lto_switch_off_field();
@@ -441,7 +526,7 @@ int infoLTO(bool verbose) {
 }
 
 static int CmdHfLTOList(const char *Cmd) {
-    return CmdTraceListAlias(Cmd, "hf lto", "lto");
+    return CmdTraceListAlias(Cmd, "hf lto", "lto -c");
 }
 
 int rdblLTO(uint8_t st_blk, uint8_t end_blk, bool verbose) {
@@ -570,12 +655,12 @@ static int CmdHfLTOWriteBlock(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf lto wrbl",
                   "Write data to block on LTO tag",
-                  "hf lto wrbl --block 128 -d 0001020304050607080910111213141516171819202122232425262728293031");
+                  "hf lto wrbl --blk 128 -d 0001020304050607080910111213141516171819202122232425262728293031");
 
     void *argtable[] = {
         arg_param_begin,
         arg_str1("d", "data", "<hex>", "32 bytes of data to write (64 hex symbols, no spaces)"),
-        arg_int1(NULL, "block", "<dec>", "The  block number to write to as an integer"),
+        arg_int1(NULL, "blk", "<dec>", "The  block number to write to as an integer"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, false);
@@ -683,12 +768,10 @@ static int CmdHfLTODump(const char *Cmd) {
     }
 
     if (strlen(filename) == 0) {
-        char *fptr = filename;
-        fptr += sprintf(fptr, "hf-lto-");
+        char *fptr = filename + snprintf(filename, sizeof(filename), "hf-lto-");
         FillFileNameByUID(fptr, dump, "-dump", 5);
     }
-    saveFile(filename, ".bin", dump, dump_len);
-    saveFileEML(filename, dump, dump_len, 32);
+    pm3_save_dump(filename, dump, dump_len, jsfLto);
     free(dump);
     return PM3_SUCCESS;
 }
@@ -777,12 +860,13 @@ static int CmdHfLTRestore(const char *Cmd) {
 
 static command_t CommandTable[] = {
     {"help",     CmdHelp,             AlwaysAvailable, "This help"},
-    {"dump",     CmdHfLTODump,        IfPm3Iso14443a, "Dump LTO-CM tag to file"},
-    {"restore",  CmdHfLTRestore,      IfPm3Iso14443a, "Restore dump file to LTO-CM tag"},
-    {"info",     CmdHfLTOInfo,        IfPm3Iso14443a, "Tag information"},
-    {"rdbl",     CmdHfLTOReadBlock,   IfPm3Iso14443a, "Read block"},
-    {"wrbl",     CmdHfLTOWriteBlock,  IfPm3Iso14443a, "Write block"},
+    {"dump",     CmdHfLTODump,        IfPm3Iso14443a,  "Dump LTO-CM tag to file"},
+    {"info",     CmdHfLTOInfo,        IfPm3Iso14443a,  "Tag information"},
     {"list",     CmdHfLTOList,        AlwaysAvailable, "List LTO-CM history"},
+    {"rdbl",     CmdHfLTOReadBlock,   IfPm3Iso14443a,  "Read block"},
+    {"reader",   CmdHFLTOReader,      IfPm3Iso14443a,  "Act like a LTO-CM reader"},
+    {"restore",  CmdHfLTRestore,      IfPm3Iso14443a,  "Restore dump file to LTO-CM tag"},
+    {"wrbl",     CmdHfLTOWriteBlock,  IfPm3Iso14443a,  "Write block"},
     {NULL, NULL, NULL, NULL}
 };
 

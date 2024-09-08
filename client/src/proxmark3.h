@@ -24,7 +24,7 @@
 
 #define PROXPROMPT_MAX_SIZE 255
 
-#define PROXPROMPT_COMPOSE "[" "%s%s" "] pm3 --> "
+#define PROXPROMPT_COMPOSE "[" "%s%s%s" "] pm3 --> "
 
 #define PROXPROMPT_CTX_SCRIPTFILE  "|" _RL_GREEN_("script")
 #define PROXPROMPT_CTX_SCRIPTCMD   "|" _RL_GREEN_("script")
@@ -35,8 +35,15 @@
 #define PROXPROMPT_DEV_FPC     _RL_BOLD_GREEN_("fpc")
 #define PROXPROMPT_DEV_OFFLINE _RL_BOLD_RED_("offline")
 
+#define PROXPROMPT_NET_TCPV4   "|" _RL_BOLD_GREEN_("tcp")
+#define PROXPROMPT_NET_UDPV4   "|" _RL_BOLD_GREEN_("udp")
+#define PROXPROMPT_NET_TCPV6   "|" _RL_BOLD_GREEN_("tcp v6")
+#define PROXPROMPT_NET_UDPV6   "|" _RL_BOLD_GREEN_("udp v6")
+#define PROXPROMPT_NET_NONE    ""
+
+
 #define PROXHISTORY "history.txt"
-#define PROXLOG "log_%Y%m%d.txt"
+#define PROXLOG "log_%Y%m%d%H%M%S.txt"
 #define MAX_NESTED_CMDSCRIPT 10
 #define MAX_NESTED_LUASCRIPT 10
 
@@ -57,7 +64,7 @@ const char *get_my_executable_path(void);
 const char *get_my_executable_directory(void);
 const char *get_my_user_directory(void);
 void pm3_init(void);
-void main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop);
+void main_loop(const char *script_cmds_file, char *script_cmd, bool stayInCommandLoop);
 
 #ifdef __cplusplus
 }

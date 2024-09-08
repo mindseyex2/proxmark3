@@ -66,15 +66,15 @@ endif
 install: all
 ifneq (,$(INSTALLTOOLS))
 	    $(info [@] Installing $(BINS) to $(DESTDIR)$(PREFIX)...)
-	    $(Q)$(MKDIR) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)
-	    $(Q)$(CP) $(INSTALLTOOLS) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)
+	    $(Q)$(INSTALLSUDO) $(MKDIR) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)
+	    $(Q)$(INSTALLSUDO) $(CP) $(INSTALLTOOLS) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)
 endif
 	@true
 
 uninstall:
 ifneq (,$(INSTALLTOOLS))
 	    $(info [@] Uninstalling $(BINS) from $(DESTDIR)$(PREFIX)...)
-	    $(Q)$(RM) $(foreach tool,$(INSTALLTOOLS),$(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)$(PATHSEP)$(notdir $(tool)))
+	    $(Q)$(INSTALLSUDO) $(RM) $(foreach tool,$(INSTALLTOOLS),$(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLTOOLSRELPATH)$(PATHSEP)$(notdir $(tool)))
 endif
 	@true
 
@@ -86,8 +86,8 @@ $(BINDIR)/$(LIB_A): $(MYOBJS) $(MYCXXOBJS)
 	$(Q)$(RANLIB) $@
 
 $(BINDIR)/% : $(OBJDIR)/%.o $(MYOBJS) $(MYCXXOBJS) $(MYLIBS)
-	$(info [=] LD $(notdir $@))
-	$(Q)$(LD) $(LDFLAGS) $(MYOBJS) $(MYCXXOBJS) $< -o $@ $(MYLIBS) $(MYLDLIBS)
+	$(info [=] CXX $(notdir $@))
+	$(Q)$(CXX) $(LDFLAGS) $(MYOBJS) $(MYCXXOBJS) $< -o $@ $(MYLIBS) $(MYLDLIBS)
 
 %.o: %.c
 $(OBJDIR)/%.o : %.c $(OBJDIR)/%.d | $(OBJDIR)
