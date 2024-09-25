@@ -1075,8 +1075,9 @@ Check column "offline" for their availability.
 |-------                  |------- |-----------
 |`lf hitag hts help      `|Y       |`This help`
 |`lf hitag hts list      `|Y       |`List Hitag S trace history`
-|`lf hitag hts read      `|N       |`Read Hitag S memory`
-|`lf hitag hts write     `|N       |`Write Hitag S page`
+|`lf hitag hts reader    `|N       |`Act like a Hitag S reader`
+|`lf hitag hts rdbl      `|N       |`Read Hitag S memory`
+|`lf hitag hts wrbl      `|N       |`Write Hitag S page`
 
 
 ### lf idteck

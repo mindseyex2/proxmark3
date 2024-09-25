@@ -595,6 +595,7 @@ typedef struct {
 #define CMD_LF_HITAGS_SIMULATE                                            0x0368
 #define CMD_LF_HITAGS_READ                                                0x0373
 #define CMD_LF_HITAGS_WRITE                                               0x0375
+#define CMD_LF_HITAGS_UID                                                 0x037A
 
 #define CMD_LF_HITAG_ELOAD                                                0x0376
 
@@ -604,6 +605,7 @@ typedef struct {
 
 #define CMD_HF_ISO14443A_SNIFF                                            0x0383
 #define CMD_HF_ISO14443A_SIMULATE                                         0x0384
+#define CMD_HF_ISO14443A_SIM_AID                                          0x1420
 
 #define CMD_HF_ISO14443A_READER                                           0x0385
 
@@ -774,6 +776,7 @@ typedef struct {
 #define FLAG_FORCED_ATQA        0x800
 #define FLAG_FORCED_SAK         0x1000
 #define FLAG_CVE21_0430         0x2000
+#define RATS_IN_DATA            0x3000
 
 
 #define MODE_SIM_CSN        0

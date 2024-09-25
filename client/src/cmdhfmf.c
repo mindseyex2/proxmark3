@@ -504,7 +504,7 @@ static bool mf_write_block(const uint8_t *key, uint8_t keytype, uint8_t blockno,
     SendCommandMIX(CMD_HF_MIFARE_WRITEBL, blockno, keytype, 0, data, sizeof(data));
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500) == false) {
-        PrintAndLogEx(FAILED, "Command execute timeout");
+        PrintAndLogEx(FAILED, "command execution time out");
         return false;
     }
 
@@ -1028,7 +1028,7 @@ static int CmdHF14AMfWrBl(const char *Cmd) {
 
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500) == false) {
-        PrintAndLogEx(FAILED, "Command execute timeout");
+        PrintAndLogEx(FAILED, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -1221,7 +1221,7 @@ static int FastDumpWithEcFill(uint8_t numsectors) {
     PacketResponseNG resp;
     bool res = WaitForResponseTimeout(CMD_HF_MIFARE_EML_LOAD, &resp, 2500);
     if (res == false) {
-        PrintAndLogEx(WARNING, "Command execute timeout");
+        PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -1235,7 +1235,7 @@ static int FastDumpWithEcFill(uint8_t numsectors) {
         SendCommandNG(CMD_HF_MIFARE_EML_LOAD, (uint8_t *)&payload, sizeof(payload));
         res = WaitForResponseTimeout(CMD_HF_MIFARE_EML_LOAD, &resp, 2500);
         if (res == false) {
-            PrintAndLogEx(WARNING, "Command execute timeout");
+            PrintAndLogEx(WARNING, "command execution time out");
             setDeviceDebugLevel(dbg_curr, false);
             return PM3_ETIMEOUT;
         }
@@ -1595,7 +1595,7 @@ static int CmdHF14AMfRestore(const char *Cmd) {
                 SendCommandMIX(CMD_HF_MIFARE_WRITEBL, blockno, kt, 0, wdata, sizeof(wdata));
                 PacketResponseNG resp;
                 if (WaitForResponseTimeout(CMD_ACK, &resp, 1500) == false) {
-                    PrintAndLogEx(WARNING, "Command execute timeout");
+                    PrintAndLogEx(WARNING, "command execution time out");
                     continue;
                 }
 
@@ -1792,7 +1792,7 @@ static int CmdHF14AMfNested(const char *Cmd) { //TODO: single mode broken? can't
         int16_t isOK = mfnested(blockNo, keyType, key, trgBlockNo, trgKeyType, keyBlock, !ignore_static_encrypted);
         switch (isOK) {
             case PM3_ETIMEOUT:
-                PrintAndLogEx(ERR, "Command execute timeout\n");
+                PrintAndLogEx(ERR, "command execution time out\n");
                 break;
             case PM3_EOPABORTED:
                 PrintAndLogEx(WARNING, "Button pressed. Aborted\n");
@@ -1875,7 +1875,7 @@ static int CmdHF14AMfNested(const char *Cmd) { //TODO: single mode broken? can't
                     int16_t isOK = mfnested(blockNo, keyType, key, mfFirstBlockOfSector(sectorNo), trgKeyType, keyBlock, calibrate);
                     switch (isOK) {
                         case PM3_ETIMEOUT:
-                            PrintAndLogEx(ERR, "Command execute timeout\n");
+                            PrintAndLogEx(ERR, "command execution time out\n");
                             break;
                         case PM3_EOPABORTED:
                             PrintAndLogEx(WARNING, "button pressed. Aborted\n");
@@ -2135,7 +2135,7 @@ static int CmdHF14AMfNestedStatic(const char *Cmd) {
                 int16_t isOK = mfStaticNested(blockNo, keyType, key, mfFirstBlockOfSector(sectorNo), trgKeyType, keyBlock);
                 switch (isOK) {
                     case PM3_ETIMEOUT :
-                        PrintAndLogEx(ERR, "Command execute timeout");
+                        PrintAndLogEx(ERR, "command execution time out");
                         break;
                     case PM3_EOPABORTED :
                         PrintAndLogEx(WARNING, "aborted via keyboard.");
@@ -3632,6 +3632,7 @@ static int CmdHF14AMfSmartBrute(const char *Cmd) {
                 break;
 
             } else if (ret == BF_GENERATOR_NEXT) {
+
                 generator_key = bf_get_key48(&bctx);
                 num_to_bytes(generator_key, MIFARE_KEY_SIZE, keyBlock + (i * MIFARE_KEY_SIZE));
                 keycnt++;
@@ -3641,10 +3642,11 @@ static int CmdHF14AMfSmartBrute(const char *Cmd) {
                     smart_mode_stage = bctx.smart_mode_stage;
                     PrintAndLogEx(INFO, "Running bruteforce stage %d", smart_mode_stage);
 
-                    if (msclock() - t1 > 0 && keys_checked > 0) {
+                    if (keys_checked) {
 
                         PrintAndLogEx(INFO, "Current cracking speed (keys/s): %lu",
-                                      keys_checked / ((msclock() - t1) / 1000));
+                                      keys_checked / ((msclock() - t1) / 1000)
+                                     );
 
                         t1 = msclock();
                         keys_checked = 0;
@@ -5894,7 +5896,7 @@ static int CmdHf14AMfSetMod(const char *Cmd) {
     SendCommandNG(CMD_HF_MIFARE_SETMOD, data, sizeof(data));
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_HF_MIFARE_SETMOD, &resp, 1500) == false) {
-        PrintAndLogEx(WARNING, "Command execute timeout");
+        PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -7555,9 +7557,9 @@ static int CmdHF14AMfWipe(const char *Cmd) {
     char *fptr;
     if (keyfnlen == 0) {
         fptr = GenerateFilename("hf-mf-", "-key.bin");
-        if (fptr == NULL)
+        if (fptr == NULL) {
             return PM3_ESOFT;
-
+        }
         strncpy(keyFilename, fptr, sizeof(keyFilename) - 1);
         free(fptr);
     }
@@ -7585,7 +7587,7 @@ static int CmdHF14AMfWipe(const char *Cmd) {
         }
         case (MIFARE_1K_EV1_MAX_KEY_SIZE): {
             PrintAndLogEx(INFO, "Loaded keys matching MIFARE Classic 1K Ev1");
-            memcpy(keyA, keys, MIFARE_1K_EV1_MAXSECTOR * MIFARE_KEY_SIZE);
+            memcpy(keyA, keys, (MIFARE_1K_EV1_MAXSECTOR * MIFARE_KEY_SIZE));
             memcpy(keyB, keys + (MIFARE_1K_EV1_MAXSECTOR * MIFARE_KEY_SIZE), (MIFARE_1K_EV1_MAXSECTOR * MIFARE_KEY_SIZE));
             num_sectors = NumOfSectors('1');
             memcpy(mf, "\x11\x22\x33\x44\x44\x08\x04\x00\x62\x63\x64\x65\x66\x67\x68\x69", MFBLOCK_SIZE);
@@ -7676,7 +7678,7 @@ static int CmdHF14AMfWipe(const char *Cmd) {
                         PrintAndLogEx(NORMAL, "- key %c ( " _RED_("fail") " )", (kt == MF_KEY_A) ? 'A' : 'B');
                     }
                 } else {
-                    PrintAndLogEx(WARNING, "Command execute timeout");
+                    PrintAndLogEx(WARNING, "command execution time out");
                 }
             }
         }
@@ -7863,14 +7865,27 @@ static int parse_gtu_cfg(uint8_t *d, size_t n) {
             break;
     }
 
-    PrintAndLogEx(INFO, "..............%02X unknown", d[7]);
+    uint8_t atslen = d[7];
+    if (atslen == 0) {
+        PrintAndLogEx(INFO, ".............. ATS length %u bytes ( %s )", atslen, _YELLOW_("zero"));
+    } else if (atslen <= 16) {
+        PrintAndLogEx(INFO, ".............. ATS length %u bytes ( %s )", atslen, _GREEN_("ok"));
+    } else {
+        PrintAndLogEx(INFO, ".............. ATS length %u bytes ( %s )", atslen, _RED_("fail"));
+        atslen = 0;
+    }
+
     PrintAndLogEx(INFO, "");
 
     // ATS seems to have 16 bytes reserved
     PrintAndLogEx(INFO, _CYAN_("Config 2 - ATS"));
     PrintAndLogEx(INFO, "%s", sprint_hex_inrow(d + 8, 16));
-    PrintAndLogEx(INFO, "%s.............. ATS ( %d bytes )", sprint_hex_inrow(&d[8], d[7]), d[7]);
-    PrintAndLogEx(INFO, "..................%s Reserved for ATS", sprint_hex_inrow(d + 8 + d[7], 16 - d[7]));
+    if (atslen <= 16) {
+        PrintAndLogEx(INFO, "%s.............. ATS ( %d bytes )", sprint_hex_inrow(&d[8], d[7]), d[7]);
+        PrintAndLogEx(INFO, "..................%s Reserved for ATS", sprint_hex_inrow(d + 8 + d[7], 16 - d[7]));
+    } else {
+        PrintAndLogEx(INFO, "%s.............. %u Reserved for ATS", sprint_hex_inrow(&d[8], 16), 16);
+    }
 
     PrintAndLogEx(INFO, "");
     PrintAndLogEx(INFO, _CYAN_("Config 3 - Limits"));
@@ -8820,7 +8835,7 @@ static int CmdHF14AGen4_GDM_Cfg(const char *Cmd) {
     SendCommandNG(CMD_HF_MIFARE_READBL_EX, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_HF_MIFARE_READBL_EX, &resp, 1500) == false) {
-        PrintAndLogEx(WARNING, "command execute timeout");
+        PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -8901,7 +8916,7 @@ static int CmdHF14AGen4_GDM_SetCfg(const char *Cmd) {
     SendCommandNG(CMD_HF_MIFARE_WRITEBL_EX, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_HF_MIFARE_WRITEBL_EX, &resp, 1500) == false) {
-        PrintAndLogEx(WARNING, "command execute timeout");
+        PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -8984,7 +8999,7 @@ static int CmdHF14AGen4_GDM_SetBlk(const char *Cmd) {
     SendCommandNG(CMD_HF_MIFARE_G4_GDM_WRBL, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_HF_MIFARE_G4_GDM_WRBL, &resp, 1500) == false) {
-        PrintAndLogEx(WARNING, "command execute timeout");
+        PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
@@ -9213,7 +9228,7 @@ static int CmdHF14AMfValue(const char *Cmd) {
 
             PacketResponseNG resp;
             if (WaitForResponseTimeout(CMD_ACK, &resp, 1500) == false) {
-                PrintAndLogEx(FAILED, "Command execute timeout");
+                PrintAndLogEx(FAILED, "command execution time out");
                 return PM3_ETIMEOUT;
             }
             isok = resp.oldarg[0] & 0xff;
@@ -9238,7 +9253,7 @@ static int CmdHF14AMfValue(const char *Cmd) {
 
             PacketResponseNG resp;
             if (WaitForResponseTimeout(CMD_ACK, &resp, 1500) == false) {
-                PrintAndLogEx(FAILED, "Command execute timeout");
+                PrintAndLogEx(FAILED, "command execution time out");
                 return PM3_ETIMEOUT;
             }
 
@@ -9500,7 +9515,7 @@ static int CmdHF14AMfInfo(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "ATQA: " _GREEN_("%02X %02X"), card.atqa[1], card.atqa[0]);
     PrintAndLogEx(SUCCESS, " SAK: " _GREEN_("%02X [%" PRIu64 "]"), card.sak, resp.oldarg[0]);
 
-    if (setDeviceDebugLevel(verbose ? DBG_INFO : DBG_NONE, false) != PM3_SUCCESS) {
+    if (setDeviceDebugLevel(verbose ? MAX(dbg_curr, DBG_INFO) : DBG_NONE, false) != PM3_SUCCESS) {
         return PM3_EFAILED;
     }
 
@@ -9579,7 +9594,7 @@ static int CmdHF14AMfInfo(const char *Cmd) {
     }
 
     if (fKeyType != 0xFF) {
-        PrintAndLogEx(SUCCESS, "Block 0.......... %s", sprint_hex(blockdata, MFBLOCK_SIZE));
+        PrintAndLogEx(SUCCESS, "Block 0.......... %s", sprint_hex_ascii(blockdata, MFBLOCK_SIZE));
     }
 
     PrintAndLogEx(NORMAL, "");
@@ -9604,6 +9619,8 @@ static int CmdHF14AMfInfo(const char *Cmd) {
         } else if (card.sak == 0x20 && memcmp(blockdata + 8, "\x62\x63\x64\x65\x66\x67\x68\x69", 8) == 0) {
             PrintAndLogEx(SUCCESS, "Fudan FM11RF32 (SAK=20)");
         } else if (card.sak == 0x28 && memcmp(blockdata + 5, "\x28\x04\x00\x90\x10\x15\x01\x00\x00\x00\x00", 11) == 0) {
+            // Note: it also has ATS =
+            // 10 78 80 90 02 20 90 00 00 00 00 00 + UID + CRC
             PrintAndLogEx(SUCCESS, "Fudan FM1208-10");
         } else if (card.sak == 0x88 && memcmp(blockdata + 5, "\x88\x04\x00\x43", 4) == 0) {
             PrintAndLogEx(SUCCESS, "Infineon SLE66R35");
@@ -9613,19 +9630,21 @@ static int CmdHF14AMfInfo(const char *Cmd) {
             PrintAndLogEx(SUCCESS, "NXP MF1ICS5004");
         } else if (fKeyType == MF_KEY_BD08 || fKeyType == MF_KEY_BD08S || fKeyType == MF_KEY_BD32) {
             PrintAndLogEx(SUCCESS, _RED_("Unknown card with backdoor, please report details!"));
-        }
-        // other cards
-        if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x46", 4) == 0) {
-            PrintAndLogEx(SUCCESS, "NXP MF1ICS5005");
-        } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x47", 4) == 0) {
-            PrintAndLogEx(SUCCESS, "NXP MF1ICS5006");
-        } else if (card.sak == 0x09 && memcmp(blockdata + 5, "\x89\x04\x00\x47", 4) == 0) {
-            PrintAndLogEx(SUCCESS, "NXP MF1ICS2006");
-        } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x48", 4) == 0) {
-            PrintAndLogEx(SUCCESS, "NXP MF1ICS5007");
-        } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\xc0", 4) == 0) {
-            PrintAndLogEx(SUCCESS, "NXP MF1ICS5035");
-        }
+        } else
+            // other cards
+            if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x46", 4) == 0) {
+                PrintAndLogEx(SUCCESS, "NXP MF1ICS5005");
+            } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x47", 4) == 0) {
+                PrintAndLogEx(SUCCESS, "NXP MF1ICS5006");
+            } else if (card.sak == 0x09 && memcmp(blockdata + 5, "\x89\x04\x00\x47", 4) == 0) {
+                PrintAndLogEx(SUCCESS, "NXP MF1ICS2006");
+            } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\x48", 4) == 0) {
+                PrintAndLogEx(SUCCESS, "NXP MF1ICS5007");
+            } else if (card.sak == 0x08 && memcmp(blockdata + 5, "\x88\x04\x00\xc0", 4) == 0) {
+                PrintAndLogEx(SUCCESS, "NXP MF1ICS5035");
+            } else {
+                PrintAndLogEx(SUCCESS, "unknown");
+            }
 
         if (e_sector[1].foundKey[MF_KEY_A] && (e_sector[1].Key[MF_KEY_A] == 0x2A2C13CC242A)) {
             PrintAndLogEx(SUCCESS, "Dorma Kaba SAFLOK detected");
@@ -9654,40 +9673,40 @@ static int CmdHF14AMfInfo(const char *Cmd) {
         PrintAndLogEx(SUCCESS, "Static nonce......... " _YELLOW_("yes"));
     }
 
-    if (res == NONCE_FAIL && verbose) {
-        PrintAndLogEx(SUCCESS, "Static nonce......... " _RED_("read failed"));
-    }
 
     if (res == NONCE_NORMAL) {
         // not static
         res = detect_classic_prng();
-        if (res == 1)
-            PrintAndLogEx(SUCCESS, "Prng................. " _GREEN_("weak"));
-        else if (res == 0)
-            PrintAndLogEx(SUCCESS, "Prng................. " _YELLOW_("hard"));
-        else
-            PrintAndLogEx(FAILED, "Prng................. " _RED_("fail"));
-
+        if (res == 1) {
+            PrintAndLogEx(SUCCESS, "Prng....... " _GREEN_("weak"));
+        } else if (res == 0) {
+            PrintAndLogEx(SUCCESS, "Prng....... " _YELLOW_("hard"));
+        } else {
+            PrintAndLogEx(FAILED, "Prng........ " _RED_("fail"));
+        }
 
         // detect static encrypted nonce
         if (keylen == MIFARE_KEY_SIZE) {
             res = detect_classic_static_encrypted_nonce(blockn, keytype, key);
             if (res == NONCE_STATIC) {
-                PrintAndLogEx(SUCCESS, "Static nonce......... " _YELLOW_("yes"));
+                PrintAndLogEx(SUCCESS, "Static nonce... " _YELLOW_("yes"));
                 fKeyType = 0xFF; // dont detect twice
             }
             if (res == NONCE_STATIC_ENC) {
-                PrintAndLogEx(SUCCESS, "Static enc nonce..... " _RED_("yes"));
+                PrintAndLogEx(SUCCESS, "Static enc nonce... " _RED_("yes"));
                 fKeyType = 0xFF; // dont detect twice
             }
         }
 
         if (fKeyType != 0xFF) {
             res = detect_classic_static_encrypted_nonce(0, fKeyType, fkey);
-            if (res == NONCE_STATIC)
-                PrintAndLogEx(SUCCESS, "Static nonce......... " _YELLOW_("yes"));
-            if (res == NONCE_STATIC_ENC)
-                PrintAndLogEx(SUCCESS, "Static enc nonce..... " _RED_("yes"));
+            if (res == NONCE_STATIC) {
+                PrintAndLogEx(SUCCESS, "Static nonce... " _YELLOW_("yes"));
+            }
+
+            if (res == NONCE_STATIC_ENC) {
+                PrintAndLogEx(SUCCESS, "Static enc nonce... " _RED_("yes"));
+            }
         }
 
         if (do_nack_test) {
@@ -9861,7 +9880,7 @@ static int CmdHF14AMfISEN(const char *Cmd) {
                 return NONCE_FAIL;
             }
         }
-        uint8_t num_sectors = 16;
+        uint8_t num_sectors = MIFARE_1K_MAXSECTOR + 1;
         PrintAndLogEx(NORMAL, "[\n  [");
         for (uint8_t sec = 0; sec < num_sectors; sec++) {
             PrintAndLogEx(NORMAL, "    [\"%08x\", \"%08x\"]%s",
@@ -9887,7 +9906,7 @@ static int CmdHF14AMfISEN(const char *Cmd) {
         }
         if (collect_fm11rf08s_with_data) {
             PrintAndLogEx(NORMAL, "  ],\n  [");
-            int bytes = num_sectors * 4 * 16;
+            int bytes = MIFARE_1K_MAXSECTOR * 4 * 16;
 
             uint8_t *dump = calloc(bytes, sizeof(uint8_t));
             if (dump == NULL) {
@@ -9899,11 +9918,11 @@ static int CmdHF14AMfISEN(const char *Cmd) {
                 free(dump);
                 return PM3_ETIMEOUT;
             }
-            for (uint8_t sec = 0; sec < num_sectors; sec++) {
+            for (uint8_t sec = 0; sec < MIFARE_1K_MAXSECTOR; sec++) {
                 for (uint8_t b = 0; b < 4; b++) {
                     PrintAndLogEx(NORMAL, "    \"%s\"%s",
                                   sprint_hex_inrow(dump + ((sec * 4) + b) * 16, 16),
-                                  (sec == num_sectors - 1) && (b == 3) ? "" : ",");
+                                  (sec == MIFARE_1K_MAXSECTOR - 1) && (b == 3) ? "" : ",");
                 }
             }
             free(dump);
